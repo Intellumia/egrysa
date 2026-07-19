@@ -7,22 +7,27 @@ later gate cannot compensate for a failed earlier one.
 
 **Purpose:** publish an inspectable alpha without implying production or compliance readiness.
 
-| Required evidence                                                                    | Current state                                                              |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Strict format, lint, type, unit/integration, and synthetic evaluation pass           | Commit `2fef037f9bc17a18a69eb3dfcd0a3b3bc9297e10`: 76 tests; 48/48 cases   |
-| Policy configuration rejects missing, duplicate, and unknown data classes            | Implemented and tested                                                     |
-| Receipts contain no raw-content digest usable for offline guessing                   | Keyed, nonce-bound fingerprint implemented and tested                      |
-| Process-local receipt chain cannot be deployed as false multi-replica evidence       | Deployment fixed at one replica; limitation documented                     |
-| Tagged release cannot bypass tests, audit, image scan, SBOM, provenance, and signing | Alpha.2 caught a referrer collision; retained alpha.3 verification pending |
-| Deployment image is immutable                                                        | Digest placeholder fails closed until the release digest is supplied       |
-| Private vulnerability reporting has a monitored route                                | Enabled; non-maintainer test advisory received and closed on 2026-07-17    |
-| No repository secret, personal local file, or invalid release identity               | Protected PR CI enforces announce-diff and history scans before merge      |
-| Product name has counsel-reviewed knockout                                           | Egrysa selected; founder reports legal screening complete                  |
-| At least one real remote-provider generation and one local-provider path pass        | Local gateway path and authorized remote adapter smoke test passed         |
-| Container and Kubernetes examples run under documented restrictions                  | Container and Calico/kind runtime restrictions validated locally           |
+| Required evidence                                                                    | Current state                                                            |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Strict format, lint, type, unit/integration, and synthetic evaluation pass           | Commit `2fef037f9bc17a18a69eb3dfcd0a3b3bc9297e10`: 76 tests; 48/48 cases |
+| Policy configuration rejects missing, duplicate, and unknown data classes            | Implemented and tested                                                   |
+| Receipts contain no raw-content digest usable for offline guessing                   | Keyed, nonce-bound fingerprint implemented and tested                    |
+| Process-local receipt chain cannot be deployed as false multi-replica evidence       | Deployment fixed at one replica; limitation documented                   |
+| Tagged release cannot bypass tests, audit, image scan, SBOM, provenance, and signing | Alpha.3 retained and independently verified all release evidence         |
+| Deployment image is immutable                                                        | Digest placeholder fails closed until the release digest is supplied     |
+| Private vulnerability reporting has a monitored route                                | Enabled; non-maintainer test advisory received and closed on 2026-07-17  |
+| No repository secret, personal local file, or invalid release identity               | Protected PR CI enforces announce-diff and history scans before merge    |
+| Product name has counsel-reviewed knockout                                           | Egrysa selected; founder reports legal screening complete                |
+| At least one real remote-provider generation and one local-provider path pass        | Local gateway path and authorized remote adapter smoke test passed       |
+| Container and Kubernetes examples run under documented restrictions                  | Container and Calico/kind runtime restrictions validated locally         |
 
 **Release label:** `v0.1.0-alpha.3`, evaluation-only. No production, certification, anonymity, or
 provider-deletion claim.
+
+The active pre-alpha.4 engineering work is maintained in
+[the alpha.4 remediation plan](ALPHA4_REMEDIATION_PLAN.md). It closes bounded-work,
+receipt-before-egress, canonical-verification, timeout, observability, and negative-test gaps before
+the project advances to roadmap 0.2 work.
 
 ## Gate 1: reproducible community alpha
 
