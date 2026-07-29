@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM denoland/deno:bin-2.9.2@sha256:a479d91f958895f3b9804ab4dd074b596a497fe0d4af198bfd2f688e61297c39 AS deno
+FROM denoland/deno:bin-2.9.3@sha256:eb93e70bd53efec4be113d9974107840756551bc1a59a8258892d7bbe5fb4ab0 AS deno
 FROM gcr.io/distroless/cc-debian12:nonroot@sha256:66aa873a4a14fb164aa01296058efd8253744606d72715e45acface073359faa
 WORKDIR /app
 COPY --from=deno /deno /usr/local/bin/deno
