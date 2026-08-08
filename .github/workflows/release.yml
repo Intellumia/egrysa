@@ -24,7 +24,7 @@ jobs:
           git fetch origin main --no-tags
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        with: { deno-version: "2.9.2" }
+        with: { deno-version: "2.9.4" }
       - run: deno task check
       - run: deno task eval
       - run: deno audit
