@@ -27,6 +27,11 @@ surface an obvious conflicting project.
 These are transient namespace observations, not reservations, trademark clearance, or legal advice.
 No package, container namespace, or domain was purchased or claimed during the refresh.
 
+The repository path recorded above is retained as the observation made on that date. The repository
+has since moved to `Intellumia/egrysa`, which is the canonical location. Release artifacts signed
+before the move still carry the original path in their certificate identity; see
+[the release process](RELEASE.md#operator-verification).
+
 ## Supplied names
 
 | Name   | Decision | Reason                                                                                                          |
