@@ -75,15 +75,15 @@ announce-commit code.
   Kubernetes runtime evidence is recorded in this section; registry signature, attestation, and
   provenance remain tag-only evidence.
 - Signed tag `v0.1.0-alpha.1` and workflow
-  [`29553773326`](https://github.com/sundeep229211/egrysa/actions/runs/29553773326) exercised the
+  [`29553773326`](https://github.com/Intellumia/egrysa/actions/runs/29553773326) exercised the
   public tag path on commit `e2b25a4`. The job reported a successful scan, image push, Sigstore
   signature, CycloneDX attestation, and GitHub provenance, but the registry/API evidence was no
   longer independently discoverable during the 2026-07-18 announce audit. No GitHub release was
   created and the tag was not moved.
 - Signed tag `v0.1.0-alpha.2` and workflow
-  [`29649397754`](https://github.com/sundeep229211/egrysa/actions/runs/29649397754) verified the
-  image signature and GitHub provenance for commit `dca67a5`, then failed closed when Cosign could
-  no longer retrieve the CycloneDX predicate after provenance publication. No release was created;
+  [`29649397754`](https://github.com/Intellumia/egrysa/actions/runs/29649397754) verified the image
+  signature and GitHub provenance for commit `dca67a5`, then failed closed when Cosign could no
+  longer retrieve the CycloneDX predicate after provenance publication. No release was created;
   alpha.3 signs the SBOM as a separate retained release asset.
 - The final documentation-link review returned HTTP 200 for all 17 external links, and the exact
   namespace refresh found no obvious npm, PyPI, Docker Hub repository, or general software-search
@@ -98,7 +98,7 @@ announce-commit code.
   Every advisory now has a recorded applicability and residual-risk disposition in the
   [SBOM advisory triage](SBOM_TRIAGE.md). This is not a claim that the image has no known
   vulnerabilities.
-- Private CI run [`29411056348`](https://github.com/sundeep229211/egrysa/actions/runs/29411056348)
+- Private CI run [`29411056348`](https://github.com/Intellumia/egrysa/actions/runs/29411056348)
   passed at commit `4b1a3e704ebb0064669955771294283fcfe48cbd`, including the independent Trivy
   filesystem vulnerability, secret, and misconfiguration baseline.
 - The repository became public on 2026-07-15. Protected `main` now requires pull requests, signed
@@ -109,16 +109,16 @@ announce-commit code.
   vulnerability reporting, and read-only default workflow permissions are enabled. At cutover,
   GitHub reported zero open CodeQL, Dependabot, and secret-scanning alerts. This records repository
   state at review time, not a claim that the software has no vulnerabilities.
-- Public CI run [`29415491535`](https://github.com/sundeep229211/egrysa/actions/runs/29415491535)
+- Public CI run [`29415491535`](https://github.com/Intellumia/egrysa/actions/runs/29415491535)
   passed `Test and audit`, `Security baseline`, and `CodeQL` on protected `main`.
   `Dependency review` was correctly skipped because the run was a manual dispatch rather than a pull
   request.
 - Public pull request #6 CI run
-  [`29416315398`](https://github.com/sundeep229211/egrysa/actions/runs/29416315398) passed
+  [`29416315398`](https://github.com/Intellumia/egrysa/actions/runs/29416315398) passed
   `Test and audit`, `Security baseline`, `Dependency review`, and `CodeQL` at signed commit
   `0ad74a689f921a319aa41a0abff7765c5a8dbebc`.
 - Public pull request #6 CI run
-  [`29430794938`](https://github.com/sundeep229211/egrysa/actions/runs/29430794938) passed
+  [`29430794938`](https://github.com/Intellumia/egrysa/actions/runs/29430794938) passed
   `Test and audit`, `Security baseline`, `Dependency review`, and `CodeQL` for the streaming, tools,
   detector, and durable-receipt implementation at signed commit
   `7a39efb8006d4f77c2ca15864367eef6e927db3d`.

@@ -5,7 +5,7 @@ Review date: 2026-07-15
 ## Scope and evidence
 
 This historical review covers the image built by private release dry run
-[`29397265834`](https://github.com/sundeep229211/egrysa/actions/runs/29397265834) from commit
+[`29397265834`](https://github.com/Intellumia/egrysa/actions/runs/29397265834) from commit
 `97838f95bf1578a6ea56c1f4de38f10c3eca2c0b`. Later data-plane changes mean its package findings are
 context rather than evidence for the current release. Every announced tag must rebuild, rescan, and
 publish its own retained CycloneDX document.
