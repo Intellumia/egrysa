@@ -232,6 +232,7 @@ and an externally storable signed chain checkpoint are available at `/v1/receipt
 - [Evaluation record](docs/EVALUATION.md)
 - [Detection coverage and measured gaps](docs/DETECTION_COVERAGE.md)
 - [Pre-filled security questionnaire](docs/SECURITY_QUESTIONNAIRE.md)
+- [Brief for an independent detection corpus](docs/CORPUS_BRIEF.md)
 - [Provider conformance](docs/CONFORMANCE.md)
 - [Release-image SBOM advisory triage](docs/SBOM_TRIAGE.md)
 - [Research roadmap](docs/RESEARCH_ROADMAP.md)

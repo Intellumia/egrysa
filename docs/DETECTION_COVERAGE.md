@@ -281,8 +281,12 @@ Neither is the independent corpus the 0.1 gate requires. The strongest available
 increasing order of value, are: cases generated from external format authorities such as the
 relevant RFCs and issuer specifications; cases written by a reviewer who has never opened `src/`;
 and a customer's own corpus over their own approved taxonomy, which is what acceptance gate 2 in the
-[CISO brief](CISO_BRIEF.md) actually contemplates. Contributions of cases that break the detector
-are explicitly welcome.
+[CISO brief](CISO_BRIEF.md) actually contemplates.
+
+A self-contained brief for authoring one is published at [corpus brief](CORPUS_BRIEF.md). It can be
+handed to a reviewer who has never seen this repository, and it is written so that following it does
+not require reading the implementation. Contributions of cases that break the detector are
+explicitly welcome.
 
 An independent adversarial corpus remains an open requirement before the 0.1 alpha gate in the
 [roadmap](../ROADMAP.md), and contributions of cases that break the detector are explicitly welcome.
