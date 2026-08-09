@@ -52,3 +52,42 @@ Deno.test("transformation rejects overlapping findings defensively", () => {
   }
   if (!rejected) throw new Error("overlapping transformation findings were accepted");
 });
+
+Deno.test("the residue audit ignores ordinary text naming the product", () => {
+  const token = "__EGRYSA_EMAIL_0001_aabbccddeeff__";
+  const mapping = new Map([[token, "a@example.com"]]);
+  // Every form below hard-failed with 502 before the audit keyed on surrogate
+  // structure instead of the bare product name.
+  for (
+    const text of [
+      "Mail the team re (egrysa-gateway) today.",
+      'Check "egrysa-gateway" before the release.',
+      "Logs are under /opt/egrysa-gateway/data.",
+      "The model:egrysa-stub entry is unrelated.",
+      "Read egrysa_config_file for the settings.",
+      "Egrysa is a gateway",
+    ]
+  ) {
+    const result = recomposeChecked(text, mapping);
+    if (result.residueDetected) throw new Error(`ordinary text flagged as residue: ${text}`);
+    if (result.text !== text) throw new Error(`ordinary text was rewritten: ${text}`);
+  }
+});
+
+Deno.test("the residue audit still catches a mutated surrogate", () => {
+  const token = "__EGRYSA_EMAIL_0001_aabbccddeeff__";
+  const mapping = new Map([[token, "a@example.com"]]);
+  for (
+    const mutated of [
+      token.toLowerCase(),
+      "__EGRYSA_EMAIL_0001_aabbccddeeff",
+      "EGRYSA-EMAIL-0001-aabbccddeeff",
+      "EGRYSA_CREDIT_CARD_0003_ff",
+      "EGRYSA_PII_0__",
+    ]
+  ) {
+    if (!recomposeChecked(mutated, mapping).residueDetected) {
+      throw new Error(`mutated surrogate escaped the audit: ${mutated}`);
+    }
+  }
+});

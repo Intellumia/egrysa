@@ -1,5 +1,5 @@
 import { randomToken } from "./crypto.ts";
-import type { Finding } from "./types.ts";
+import { type Finding, FINDING_KINDS } from "./types.ts";
 
 export interface Transformation {
   text: string;
@@ -67,6 +67,27 @@ export function recomposeChecked(
   };
 }
 
+// Residue is recognised by surrogate structure rather than by the product name.
+//
+// Matching a bare `egrysa[-_]word` failed closed on ordinary text: a request
+// mentioning `/opt/egrysa-gateway` alongside any transformable value returned
+// 502, and whether it did so depended on adjacent punctuation, because the
+// audit strips whitespace before testing.
+//
+// Two shapes count as residue. Either the token skeleton survives, meaning the
+// sentinel is followed by a finding kind and a sequence number, or the sentinel
+// is followed by a token body and the closing delimiter. A mutation has to
+// destroy both to escape, and neither shape occurs in prose.
+const RESIDUE_KINDS = FINDING_KINDS
+  .map((kind) => kind.toUpperCase().replace(/_/g, "[_-]"))
+  .join("|");
+
+const SURROGATE_SKELETON = `egrysa[_-]{0,2}(?:${RESIDUE_KINDS})[_-]{0,2}\\d{1,4}`;
+const SURROGATE_TAIL = `egrysa[_-][\\w-]{1,128}[_-]{2}`;
+
+const COMPLETE_RESIDUE = new RegExp(`(?:${SURROGATE_SKELETON})|(?:${SURROGATE_TAIL})`, "i");
+const PARTIAL_RESIDUE = new RegExp(SURROGATE_TAIL, "i");
+
 export function hasSurrogateResidue(
   providerText: string,
   mapping: ReadonlyMap<string, string>,
@@ -75,11 +96,7 @@ export function hasSurrogateResidue(
   let unknown = providerText;
   for (const token of mapping.keys()) unknown = unknown.replaceAll(token, "");
   unknown = unknown.replace(/\s+/g, "");
-  return complete
-    ? /(?:_+egrysa[_-][\w-]{4,128}|\begrysa[_-][\w-]{4,128})/i.test(unknown)
-    : /(?:_+egrysa[_-][\w-]{1,128}[_-]{2}|\begrysa[_-][\w-]{1,128}[_-]{2})/i.test(
-      unknown,
-    );
+  return complete ? COMPLETE_RESIDUE.test(unknown) : PARTIAL_RESIDUE.test(unknown);
 }
 
 export function hasSurrogateResidueAfterRecomposition(
@@ -92,5 +109,5 @@ export function hasSurrogateResidueAfterRecomposition(
     if (original) audit = audit.replaceAll(original, "");
   }
   audit = audit.replace(/\s+/g, "");
-  return /(?:_+egrysa[_-][\w-]{4,128}|\begrysa[_-][\w-]{4,128})/i.test(audit);
+  return COMPLETE_RESIDUE.test(audit);
 }
