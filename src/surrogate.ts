@@ -88,11 +88,20 @@ const SURROGATE_TAIL = `egrysa[_-][\\w-]{1,128}[_-]{2}`;
 const COMPLETE_RESIDUE = new RegExp(`(?:${SURROGATE_SKELETON})|(?:${SURROGATE_TAIL})`, "i");
 const PARTIAL_RESIDUE = new RegExp(SURROGATE_TAIL, "i");
 
+// Both residue patterns require the literal sentinel, and every issued token
+// contains it. Text without the sentinel therefore cannot match, and removing
+// tokens cannot introduce one: a token that is present already supplies it, and
+// if none is present the removal changes nothing. Testing for it first turns the
+// common chunk, which carries no surrogate at all, into a single scan instead of
+// one pass per token.
+const SENTINEL_PROBE = /egrysa/i;
+
 export function hasSurrogateResidue(
   providerText: string,
   mapping: ReadonlyMap<string, string>,
   complete = true,
 ): boolean {
+  if (!SENTINEL_PROBE.test(providerText.replace(/\s+/g, ""))) return false;
   let unknown = providerText;
   for (const token of mapping.keys()) unknown = unknown.replaceAll(token, "");
   unknown = unknown.replace(/\s+/g, "");
@@ -110,4 +119,10 @@ export function hasSurrogateResidueAfterRecomposition(
   }
   audit = audit.replace(/\s+/g, "");
   return COMPLETE_RESIDUE.test(audit);
+}
+
+// Exported so the streaming recomposer can skip per-token work on a chunk that
+// cannot contain a surrogate.
+export function mayContainSurrogate(text: string): boolean {
+  return SENTINEL_PROBE.test(text);
 }

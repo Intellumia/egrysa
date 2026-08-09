@@ -1,4 +1,4 @@
-import { hasSurrogateResidue } from "./surrogate.ts";
+import { hasSurrogateResidue, mayContainSurrogate } from "./surrogate.ts";
 
 export class RecompositionError extends Error {}
 
@@ -144,6 +144,9 @@ class BufferedRecomposer {
   }
 
   #replaceKnown(): void {
+    // Every token carries the sentinel, so a buffer without it has nothing to
+    // replace and does not need a pass per token.
+    if (!mayContainSurrogate(this.#buffer)) return;
     for (const [token, original] of this.mapping) {
       this.#buffer = this.#buffer.replaceAll(token, original);
     }
@@ -151,6 +154,9 @@ class BufferedRecomposer {
 
   #assertNoSurrogatePrefixBefore(boundary: number): void {
     if (this.mapping.size === 0) return;
+    // Both alternatives below require the literal sentinel, and blanking a
+    // recomposed original cannot introduce one, so its absence is conclusive.
+    if (!mayContainSurrogate(this.#buffer)) return;
     let audit = this.#buffer;
     for (const original of this.mapping.values()) {
       if (original) audit = audit.replaceAll(original, "\0".repeat(original.length));

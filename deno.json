@@ -23,6 +23,7 @@
     "eval": "deno run --no-prompt --allow-read=config,evals src/eval.ts",
     "eval:semantic": "deno run --no-prompt --allow-read=config,evals --allow-env=EGRYSA_CONFIG --allow-net=127.0.0.1,localhost,[::1] src/eval_semantic.ts",
     "dev:stub": "EGRYSA_CONFIG=config/egrysa.stub.json deno run --env-file=.env.stub --no-prompt --allow-read=config,data --allow-write=data --allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY --allow-net=127.0.0.1:8787,127.0.0.1:11435 src/main.ts",
+    "bench": "deno bench --no-prompt tests/streaming_bench.ts",
     "stub": "deno run --no-prompt --allow-env=EGRYSA_STUB_PORT --allow-net=127.0.0.1:11435 tools/stub_provider.ts",
     "eval:adversarial": "deno run --no-prompt --allow-read=config,evals tools/adversarial_report.ts",
     "conformance": "deno run --allow-read=config --allow-write=evals/conformance tools/conformance.ts",
