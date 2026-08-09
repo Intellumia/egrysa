@@ -25,6 +25,16 @@ export type SemanticFindingKind = typeof SEMANTIC_FINDING_KINDS[number];
 
 export type Decision = "allow_raw" | "transform" | "local_only" | "deny";
 
+// How a low-precision finding in a blocked data class is handled. A
+// high-precision finding always denies, in every mode.
+//
+//   strict   deny, accepting that a false positive blocks legitimate work
+//   balanced route to local inference, the shipped default
+//   review   hold the request and let a person decide
+export const SENSITIVITIES = ["strict", "balanced", "review"] as const;
+
+export type Sensitivity = typeof SENSITIVITIES[number];
+
 export interface Finding {
   kind: FindingKind;
   start: number;
@@ -100,6 +110,7 @@ export interface AppConfig {
     localOnlyKinds: FindingKind[];
     transformKinds: FindingKind[];
     sensitiveTerms: Array<{ term: string; label: string }>;
+    sensitivity?: Sensitivity;
   };
 }
 

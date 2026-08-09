@@ -23,13 +23,16 @@ signed evidence of every decision," that is supported today.
 
 ## Measured results
 
-| Measure                                  | Result |
-| ---------------------------------------- | ------ |
-| Cases fully detected                     | 55/98  |
-| Undisclosed misses                       | 35     |
-| Misses covered by a documented exclusion | 8      |
-| False positives on negative controls     | 0/15   |
-| Policy decision accuracy                 | 63.3%  |
+| Measure                                  | Before | After |
+| ---------------------------------------- | ------ | ----- |
+| Cases fully detected                     | 55/98  | 73/98 |
+| Undisclosed misses                       | 35     | 17    |
+| Misses covered by a documented exclusion | 8      | 8     |
+| False positives on negative controls     | 0/15   | 0/15  |
+| Policy decision accuracy                 | 63.3%  | 67.3% |
+
+"Before" is the floor as first measured; "after" reflects the credential and envelope coverage added
+once the corpus existed.
 
 Per kind, lowest recall first:
 
@@ -38,13 +41,13 @@ Per kind, lowest recall first:
 | `person_name`       | 0%     | —         |
 | `physical_address`  | 0%     | —         |
 | `ssn`               | 25%    | 100%      |
-| `api_secret`        | 34.6%  | 100%      |
-| `email`             | 43.8%  | 70%       |
-| `private_key`       | 50%    | 100%      |
+| `email`             | 43.8%  | 100%      |
 | `ipv4`              | 66.7%  | 66.7%     |
-| `iban`              | 75%    | 100%      |
 | `credit_card`       | 80%    | 100%      |
+| `api_secret`        | 88.5%  | 100%      |
+| `private_key`       | 100%   | 100%      |
 | `phone`             | 100%   | 85.7%     |
+| `iban`              | 100%   | 100%      |
 | `confidential_term` | 100%   | 100%      |
 
 By category:
@@ -54,8 +57,8 @@ By category:
 | Payment card formats | 11/11    |
 | Realistic contexts   | 12/12    |
 | Negative controls    | 15/15    |
-| Internationalization | 8/10     |
-| Credential formats   | 8/25     |
+| Credential formats   | 25/25    |
+| Internationalization | 9/10     |
 | Obfuscation          | 1/10     |
 | Encoding             | 0/7      |
 
@@ -68,10 +71,17 @@ block legitimate work through spurious matches.
 **Well-formed values in realistic contexts are caught.** Stack traces, log lines, CSV rows, SQL
 inserts, Kubernetes manifests, and support tickets all classify correctly.
 
-**Credential coverage is the largest gap.** Only 8 of 25 credential formats are detected. The
-detector recognizes OpenAI-style `sk-` keys, AWS access key identifiers, and classic GitHub tokens.
-It does not currently recognize GitHub fine-grained tokens, Google, Slack, GitLab, Stripe, SendGrid,
-npm, Azure connection strings, JSON Web Tokens, or passwords embedded in database and HTTP URLs.
+**Credential coverage is now complete across the corpus, 25 of 25 formats.** The detector recognizes
+vendor-namespaced prefixes for OpenAI, Anthropic, AWS access key identifiers, GitHub classic and
+fine-grained tokens, GitLab, Google, Slack, Stripe, npm, SendGrid, Azure storage connection strings,
+and JSON Web Tokens, plus passwords carried in a URL authority. Each alternative is anchored on a
+literal the provider issues, so the broader coverage did not cost precision: `api_secret` remains at
+100% with no new false positives.
+
+AWS session tokens carry no stable prefix, so they are reached by a low-precision pattern that keys
+on the assignment (`aws_secret_access_key=…`) rather than the value. Because that pattern can
+misfire on benign configuration, what happens to its findings is governed by `policy.sensitivity`
+below rather than fixed here.
 
 This gap has independent corroboration from two scanners the project already runs. Publishing the
 corpus was blocked by GitHub push protection, which identified the synthetic Slack, Stripe, and
@@ -93,11 +103,75 @@ logs and request captures routinely contain encoded values.
 number, and space- or period-separated SSNs are not matched. Deliberate evasion by a motivated
 insider is not in scope for a deterministic layer.
 
-**A credential inside a URL can be downgraded, not just missed.** In `postgres://user:password@host`
-and similar forms, the authority segment matches the email pattern. The value is surrogated, so it
-does not reach the provider in cleartext, but it is recorded as `email` and routed to `transform`
-rather than the `deny` that `api_secret` would have produced. The data is protected; the decision
-and the receipt understate the severity.
+**Severity downgrade on URL credentials, since corrected.** The corpus surfaced a case where a
+password in a URL authority, as in `postgres://user:password@host`, matched the email pattern. The
+value was surrogated and so never reached a provider in cleartext, but it was recorded as `email`
+and routed to `transform` rather than the `deny` that `api_secret` produces. The data was protected
+while the decision and the receipt understated the severity. A dedicated pattern now claims the
+whole URL authority, and `email` precision rose from 70% to 100% as a result. This is recorded
+because it is the class of defect this corpus exists to find: not a missed value, but a correctly
+detected value carrying the wrong severity.
+
+## Choosing the tradeoff: `policy.sensitivity`
+
+Coverage and false positives pull against each other, and the right balance is a property of the
+deployment rather than of the engine. Patterns therefore carry a precision tier, and what happens to
+a low-precision finding in a blocked data class is a configuration choice.
+
+A **high**-precision finding in a blocked class always denies, in every mode. Only low-precision
+findings are affected.
+
+| `policy.sensitivity` | Low-precision finding in a blocked class | Suits                                        |
+| -------------------- | ---------------------------------------- | -------------------------------------------- |
+| `strict`             | `deny`                                   | Regulated egress: a miss costs more than a   |
+|                      |                                          | blocked request                              |
+| `balanced` (default) | Routed to local inference                | General enterprise use                       |
+| `review`             | Held for a person to decide              | Anywhere a regex should not be the last word |
+
+Omitting the field behaves exactly as `balanced`, which is what earlier releases did, so existing
+configurations are unaffected.
+
+### How `review` works
+
+The request is held before anything leaves the boundary and answered with `409` and a receipt
+identifier:
+
+```json
+{
+  "type": "urn:egrysa:error:review_required",
+  "title": "review_required",
+  "status": 409,
+  "detail": "A low-precision finding in a blocked data class needs a human decision. ...",
+  "receiptId": "b7c1…"
+}
+```
+
+The response names the receipt, never the matched value. To proceed, retry the request with that
+identifier:
+
+```sh
+-H "x-egrysa-acknowledge: b7c1…"
+```
+
+An acknowledgement is accepted only if this gateway issued it, and only once, so it cannot be forged
+by sending an arbitrary header or replayed across requests. The hold and the acknowledged retry each
+produce their own receipt, and the pair is the evidence that a person made the call rather than a
+pattern.
+
+Holds are tracked in memory and bounded. A restart clears them, and the caller simply receives a
+fresh hold on the next attempt.
+
+### Which findings are low precision
+
+Currently one: a credential identified by its assignment rather than its own format, such as
+`aws_secret_access_key=…`, `password: …`, or `client_secret=…`. This is what closed the last
+credential-format gap, and it is exactly the pattern that would misfire on benign configuration,
+which is why its handling is a policy choice rather than a fixed behavior.
+
+Contiguous nine-digit SSNs are deliberately **not** in this tier. Detecting them was tried and
+reverted: `balanced` would have rerouted ordinary ticket and order numbers to local inference,
+contradicting a documented decision. Whether to reconsider that under `strict` is an open question,
+not an oversight.
 
 ## Documented exclusions behaving as documented
 
@@ -132,11 +206,12 @@ An independent adversarial corpus remains an open requirement before the 0.1 alp
 
 Given the above, an evaluator deploying Egrysa should assume:
 
-1. Credential leakage is possible for formats outside the recognized set. Pair Egrysa with a
-   dedicated secret scanner on the same egress path where credential exposure is the primary risk.
+1. Credential leakage remains possible for formats outside the recognized set, including AWS session
+   tokens and any provider that issues unprefixed tokens. Pair Egrysa with a dedicated secret
+   scanner on the same egress path where credential exposure is the primary risk.
 2. Encoded and obfuscated content is not inspected. Where clients paste raw captures, decode before
-   the gateway or accept the gap explicitly.
-3. Policy severity can understate the finding when a credential is embedded in a URL.
-4. Absence of a finding is not evidence of absence of sensitive data, and a receipt does not assert
+   the gateway or accept the gap explicitly. This is the largest remaining gap: 0 of 7 encoding
+   cases and 1 of 10 obfuscation cases are detected.
+3. Absence of a finding is not evidence of absence of sensitive data, and a receipt does not assert
    that a prompt was clean. See the [evaluation record](EVALUATION.md) for what receipts do and do
    not prove.

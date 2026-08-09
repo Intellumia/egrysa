@@ -4,6 +4,10 @@ export interface PolicyResult {
   decision: Decision;
   provider: ProviderConfig | null;
   reason: string;
+  // Set when sensitivity is "review" and only a low-precision finding in a
+  // blocked class stands between the request and its decision. The decision
+  // above is what applies once a person acknowledges the hold.
+  reviewRequired?: boolean;
 }
 
 export function decide(
@@ -24,6 +28,17 @@ export function decide(
     config.policy.blockKinds.includes(finding.kind) && finding.precision !== undefined &&
     finding.precision !== "high"
   );
+
+  const sensitivity = config.policy.sensitivity ?? "balanced";
+  if (lowPrecisionBlocked && sensitivity === "strict") {
+    return {
+      decision: "deny",
+      provider: null,
+      reason: "low-precision finding in a blocked data class, strict sensitivity",
+    };
+  }
+  const reviewRequired = lowPrecisionBlocked && sensitivity === "review";
+
   const localRouteRequired = lowPrecisionBlocked || intersects(kinds, config.policy.localOnlyKinds);
 
   const providerId = localRouteRequired
@@ -46,6 +61,7 @@ export function decide(
       reason: lowPrecisionBlocked
         ? "candidate blocked data routed to local inference"
         : "confidential data routed to local inference",
+      ...(reviewRequired ? { reviewRequired: true } : {}),
     };
   }
 

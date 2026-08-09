@@ -802,3 +802,50 @@ Deno.test("gateway safely recomposes surrogate tokens split across SSE chunks", 
     await server.shutdown();
   }
 });
+
+Deno.test("review sensitivity holds a low-precision finding until acknowledged", async () => {
+  await configureTestEnvironment();
+  const base = testConfig();
+  const gateway = await Gateway.create({
+    ...base,
+    policy: { ...base.policy, sensitivity: "review" as const },
+  });
+  const send = (extra: Record<string, string> = {}) =>
+    gateway.handle(
+      new Request("http://gateway/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer a-test-client-key-that-is-long-enough",
+          "content-type": "application/json",
+          ...extra,
+        },
+        body: JSON.stringify({
+          model: "approved-model",
+          messages: [{
+            role: "user",
+            content: "Set aws_secret_access_key=wJalrXUtnFEMI/K7MDENGbPxRfiCYEXAMPLEKEY now.",
+          }],
+        }),
+      }),
+    );
+
+  const held = await send();
+  if (held.status !== 409) throw new Error(`expected 409 hold, got ${held.status}`);
+  const body = await held.json();
+  if (body.title !== "review_required") throw new Error("hold is not labelled review_required");
+  if (typeof body.receiptId !== "string" || !body.receiptId) {
+    throw new Error("hold must name a receipt to acknowledge");
+  }
+  if (JSON.stringify(body).includes("wJalrXUtnFEMI")) {
+    throw new Error("hold response leaked the matched value");
+  }
+
+  const forged = await send({ "x-egrysa-acknowledge": "00000000-0000-0000-0000-000000000000" });
+  if (forged.status !== 409) throw new Error("an unissued acknowledgement was accepted");
+
+  const acknowledged = await send({ "x-egrysa-acknowledge": body.receiptId });
+  if (acknowledged.status === 409) throw new Error("a valid acknowledgement was not honored");
+
+  const replayed = await send({ "x-egrysa-acknowledge": body.receiptId });
+  if (replayed.status !== 409) throw new Error("an acknowledgement was reusable");
+});
