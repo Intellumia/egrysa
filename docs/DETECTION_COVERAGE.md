@@ -10,7 +10,8 @@ Reproduce every number here with:
 deno task eval:adversarial
 ```
 
-Suite: `egrysa-adversarial-v1`, 98 cases, semantic detector off, shipped example configuration.
+Suite: `egrysa-adversarial-v1`, 102 cases, semantic detector off, shipped example configuration. Add
+`--sensitivity=strict` or `--sensitivity=review` to measure a different mode.
 
 ## The short version
 
@@ -23,16 +24,24 @@ signed evidence of every decision," that is supported today.
 
 ## Measured results
 
-| Measure                                  | Before | After |
-| ---------------------------------------- | ------ | ----- |
-| Cases fully detected                     | 55/98  | 73/98 |
-| Undisclosed misses                       | 35     | 17    |
-| Misses covered by a documented exclusion | 8      | 8     |
-| False positives on negative controls     | 0/15   | 0/15  |
-| Policy decision accuracy                 | 63.3%  | 67.3% |
+| Measure                                  | `balanced` (default) | `strict` |
+| ---------------------------------------- | -------------------- | -------- |
+| Cases fully detected                     | 77/102               | 79/102   |
+| Undisclosed misses                       | 17                   | 15       |
+| Misses covered by a documented exclusion | 8                    | 8        |
+| False positives on negative controls     | **0/19**             | **4/19** |
+| `ssn` recall                             | 25%                  | 75%      |
+| `ssn` precision                          | 100%                 | 42.9%    |
 
-"Before" is the floor as first measured; "after" reflects the credential and envelope coverage added
-once the corpus existed.
+`review` measures identically to `balanced` here. It changes what _happens_ to a finding, not
+whether the finding is made, and this report measures detection rather than routing.
+
+**That table is the whole argument for the switch.** Strict finds two more cases and pays four false
+positives for them, dropping `ssn` precision from 100% to 42.9%. Neither column is the right answer
+for every deployment, which is why it is configuration rather than a fixed behavior.
+
+For reference, the floor as first measured, before any of this work and on the original 98-case
+corpus, was 55 detected with 35 undisclosed misses.
 
 Per kind, lowest recall first:
 
@@ -44,7 +53,7 @@ Per kind, lowest recall first:
 | `email`             | 43.8%  | 100%      |
 | `ipv4`              | 66.7%  | 66.7%     |
 | `credit_card`       | 80%    | 100%      |
-| `api_secret`        | 88.5%  | 100%      |
+| `api_secret`        | 92.3%  | 100%      |
 | `private_key`       | 100%   | 100%      |
 | `phone`             | 100%   | 85.7%     |
 | `iban`              | 100%   | 100%      |
@@ -52,21 +61,21 @@ Per kind, lowest recall first:
 
 By category:
 
-| Category             | Detected |
-| -------------------- | -------- |
-| Payment card formats | 11/11    |
-| Realistic contexts   | 12/12    |
-| Negative controls    | 15/15    |
-| Credential formats   | 25/25    |
-| Internationalization | 9/10     |
-| Obfuscation          | 1/10     |
-| Encoding             | 0/7      |
+| Category             | `balanced` | `strict` |
+| -------------------- | ---------- | -------- |
+| Credential formats   | 25/25      | 25/25    |
+| Payment card formats | 11/11      | 11/11    |
+| Realistic contexts   | 12/12      | 12/12    |
+| Negative controls    | 19/19      | 15/19    |
+| Internationalization | 9/10       | 9/10     |
+| Obfuscation          | 1/10       | 3/10     |
+| Encoding             | 0/7        | 0/7      |
 
 ## What this means in practice
 
-**Zero false positives across 15 negative controls.** Git SHAs, image digests, UUIDs, ISBNs, order
-numbers, semantic versions, and digit runs failing Luhn are all left alone. Egrysa is unlikely to
-block legitimate work through spurious matches.
+**Zero false positives across 19 negative controls, under the default.** Git SHAs, image digests,
+UUIDs, ISBNs, order numbers, semantic versions, and digit runs failing Luhn are all left alone.
+Egrysa is unlikely to block legitimate work through spurious matches.
 
 **Well-formed values in realistic contexts are caught.** Stack traces, log lines, CSV rows, SQL
 inserts, Kubernetes manifests, and support tickets all classify correctly.
@@ -163,15 +172,21 @@ fresh hold on the next attempt.
 
 ### Which findings are low precision
 
-Currently one: a credential identified by its assignment rather than its own format, such as
-`aws_secret_access_key=…`, `password: …`, or `client_secret=…`. This is what closed the last
-credential-format gap, and it is exactly the pattern that would misfire on benign configuration,
-which is why its handling is a policy choice rather than a fixed behavior.
+**Active in every mode:** a credential identified by its assignment rather than its own format, such
+as `aws_secret_access_key=…`, `password: …`, or `client_secret=…`. This closed the last
+credential-format gap, and it is exactly the pattern that misfires on benign configuration, which is
+why its handling is a policy choice rather than a fixed behavior.
 
-Contiguous nine-digit SSNs are deliberately **not** in this tier. Detecting them was tried and
-reverted: `balanced` would have rerouted ordinary ticket and order numbers to local inference,
-contradicting a documented decision. Whether to reconsider that under `strict` is an open question,
-not an oversight.
+**Active only under `strict`:** SSNs written with space or period separators, such as `123 45 6789`.
+Ordinary ticket, invoice, part, and sensor numbers take the same shape. Enabling this by default
+would reroute routine traffic and would contradict the documented decision that deny-class SSN
+detection requires the canonical hyphenated form. Under `strict` it lifts `ssn` recall from 25% to
+75% and costs four false positives out of nineteen negative controls, taking `ssn` precision to
+42.9%. An operator choosing `strict` is choosing exactly that trade.
+
+A strict-only pattern changes what the detector emits, so the pattern detector reports a distinct
+version, `1.2.0+strict`, in the receipt. A receipt therefore records which ruleset produced its
+findings without needing the configuration that ran.
 
 ## Documented exclusions behaving as documented
 

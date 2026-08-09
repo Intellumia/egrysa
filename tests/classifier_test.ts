@@ -1,4 +1,4 @@
-import { classify, removeOverlaps } from "../src/classifier.ts";
+import { classify, createDetectors, removeOverlaps } from "../src/classifier.ts";
 import type { Finding, FindingKind } from "../src/types.ts";
 import { testConfig } from "./fixtures.ts";
 
@@ -202,4 +202,38 @@ Deno.test("broadened credential patterns do not match ordinary identifiers", asy
       throw new Error(`false positive on: ${text}`);
     }
   }
+});
+
+Deno.test("the strict-only SSN pattern is inert outside strict sensitivity", async () => {
+  const base = testConfig();
+  const text = "Employee SSN 123 45 6789 and ticket 123.45.6789 are on file.";
+  for (const sensitivity of ["balanced", "review"] as const) {
+    const config = { ...base, policy: { ...base.policy, sensitivity } };
+    const findings = await classify(text, config, createDetectors(config));
+    if (findings.some((finding) => finding.kind === "ssn")) {
+      throw new Error(`${sensitivity} classified a separated identifier as an SSN`);
+    }
+  }
+  const strict = { ...base, policy: { ...base.policy, sensitivity: "strict" as const } };
+  const findings = await classify(text, strict, createDetectors(strict));
+  const ssn = findings.filter((finding) => finding.kind === "ssn");
+  if (ssn.length !== 2) throw new Error(`strict found ${ssn.length} SSNs, expected 2`);
+  if (ssn.some((finding) => finding.precision !== "low")) {
+    throw new Error("strict-only SSN findings must be low precision");
+  }
+});
+
+Deno.test("the pattern detector version records which ruleset ran", () => {
+  const base = testConfig();
+  const strict = { ...base, policy: { ...base.policy, sensitivity: "strict" as const } };
+  const versionOf = (config: ReturnType<typeof testConfig>) =>
+    createDetectors(config).find((detector) =>
+      detector.manifest.id === "egrysa.deterministic.patterns"
+    )?.manifest.version ?? "";
+  const relaxed = versionOf(base);
+  const strictVersion = versionOf(strict);
+  if (relaxed === strictVersion) {
+    throw new Error("a receipt cannot distinguish the strict ruleset from the default");
+  }
+  if (!strictVersion.includes("strict")) throw new Error("strict ruleset is not identified");
 });

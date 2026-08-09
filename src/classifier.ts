@@ -34,6 +34,10 @@ const patterns: Array<{
   // reach, and what happens to its findings is chosen by policy.sensitivity
   // rather than decided here.
   precision?: "high" | "low";
+  // Only runs under strict sensitivity. Reserved for patterns whose false
+  // positives would be unacceptable as a default, where an operator has
+  // explicitly chosen to block more rather than miss more.
+  strictOnly?: boolean;
 }> = [
   {
     kind: "private_key",
@@ -67,6 +71,16 @@ const patterns: Array<{
   },
   { kind: "credit_card", regex: /\b(?:\d[ -]*?){13,19}\b/g, validate: luhn },
   { kind: "ipv4", regex: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g, validate: validateIpv4 },
+  {
+    // Space- and period-separated SSNs. Ordinary ticket, order, and reference
+    // numbers take the same shape, so under any other sensitivity this would
+    // reroute routine traffic. Strict deployments accept that cost in exchange
+    // for not missing an SSN written in a non-canonical form.
+    kind: "ssn",
+    regex: /\b(?!000|666|9\d\d)\d{3}[ .](?!00)\d{2}[ .](?!0000)\d{4}\b/g,
+    precision: "low",
+    strictOnly: true,
+  },
   {
     // A credential named by its assignment rather than its own format. This
     // reaches unprefixed values such as AWS secret access keys and generic
@@ -157,21 +171,28 @@ export async function classifyDetailed(
 
 export function createDetectors(config: AppConfig): LocalDetector[] {
   const semantic = createSemanticDetector(config);
-  return [patternDetector(), sensitiveTermDetector(config), ...(semantic ? [semantic] : [])];
+  return [
+    patternDetector((config.policy.sensitivity ?? "balanced") === "strict"),
+    sensitiveTermDetector(config),
+    ...(semantic ? [semantic] : []),
+  ];
 }
 
-function patternDetector(): LocalDetector {
+function patternDetector(strict: boolean): LocalDetector {
+  const active = strict ? patterns : patterns.filter((item) => !item.strictOnly);
   return {
     manifest: {
       contractVersion: "1",
       id: "egrysa.deterministic.patterns",
-      version: "1.1.0",
+      // The build suffix records which ruleset produced a finding, so a receipt
+      // stays interpretable without knowing the configuration that ran.
+      version: strict ? "1.2.0+strict" : "1.2.0",
       provenance: "built-in",
       timeoutMs: 100,
     },
     detect({ text }) {
       const findings: Finding[] = [];
-      for (const item of patterns) {
+      for (const item of active) {
         item.regex.lastIndex = 0;
         for (const match of text.matchAll(item.regex)) {
           const value = match[0];
