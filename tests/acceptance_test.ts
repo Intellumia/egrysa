@@ -10,8 +10,10 @@ Deno.test("black-box compatibility and evidence acceptance", async () => {
     prefix: "egrysa-acceptance-",
     suffix: ".jsonl",
   });
-  let providerPort!: number;
-  let gatewayPort!: number;
+  let resolveProviderPort!: (port: number) => void;
+  const providerPortReady = new Promise<number>((resolve) => resolveProviderPort = resolve);
+  let resolveGatewayPort!: (port: number) => void;
+  const gatewayPortReady = new Promise<number>((resolve) => resolveGatewayPort = resolve);
   let streamCancelled = false;
   let lastProviderBody: Record<string, unknown> | null = null;
   const encoder = new TextEncoder();
@@ -19,12 +21,13 @@ Deno.test("black-box compatibility and evidence acceptance", async () => {
   const provider = Deno.serve({
     hostname: "127.0.0.1",
     port: 0,
-    onListen: ({ port }) => providerPort = port,
+    onListen: ({ port }) => resolveProviderPort(port),
   }, async (request) => {
     const body = await request.json() as Record<string, unknown>;
     lastProviderBody = body;
     if (body.seed === 504) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Comfortably past config.requestTimeoutMs so the deadline is what fires.
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
     const messages = body.messages as Array<Record<string, unknown>>;
     const content = String(messages[0]?.content ?? "");
@@ -87,17 +90,20 @@ Deno.test("black-box compatibility and evidence acceptance", async () => {
     const config = testConfig();
     config.receiptLogPath = receiptLogPath;
     config.receiptChainId = "acceptance-chain";
-    config.requestTimeoutMs = 50;
+    // Wide enough that a loaded runner cannot trip it by accident. Every
+    // healthy request also pays Ed25519 signing and an fsynced receipt write,
+    // and the previous 50 ms left no margin for either.
+    config.requestTimeoutMs = 500;
     config.policy.defaultProvider = "local";
-    config.providers[1]!.baseUrl = `http://127.0.0.1:${providerPort}/v1`;
+    config.providers[1]!.baseUrl = `http://127.0.0.1:${await providerPortReady}/v1`;
     const gateway = await Gateway.create(config);
     const server = Deno.serve({
       hostname: "127.0.0.1",
       port: 0,
-      onListen: ({ port }) => gatewayPort = port,
+      onListen: ({ port }) => resolveGatewayPort(port),
     }, (request) => gateway.handle(request));
     try {
-      const baseUrl = `http://127.0.0.1:${gatewayPort}`;
+      const baseUrl = `http://127.0.0.1:${await gatewayPortReady}`;
       const models = await authorizedFetch(`${baseUrl}/v1/models`);
       const modelBody = await models.json();
       assert(models.status === 200 && modelBody.data[0]?.id === "approved-model", "models");
@@ -116,7 +122,12 @@ Deno.test("black-box compatibility and evidence acceptance", async () => {
         stream: true,
       });
       const streamText = await streamed.text();
-      assert(streamText.includes("stream@example.com") && streamText.includes("[DONE]"), "stream");
+      assert(
+        streamText.includes("stream@example.com") && streamText.includes("[DONE]"),
+        `stream (status ${streamed.status}, ${streamText.length} bytes, ` +
+          `recomposed=${streamText.includes("stream@example.com")}, ` +
+          `done=${streamText.includes("[DONE]")}): ${JSON.stringify(streamText.slice(0, 400))}`,
+      );
 
       const tool = await chat(baseUrl, {
         model: "approved-model",
