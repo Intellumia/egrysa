@@ -48,8 +48,17 @@ manifest is an intentional fail-closed placeholder.
 The commands below are the authoritative procedure. To run them without transcribing:
 
 ```sh
+# After the tag workflow finishes, before any release exists:
+gh run download --name egrysa-release-evidence-v0.1.0-alpha.4 --dir ./evidence
+tools/verify-release.sh v0.1.0-alpha.4 --from-dir ./evidence
+
+# Or, against an already published release:
 tools/verify-release.sh v0.1.0-alpha.4
 ```
+
+The tag workflow uploads the evidence as a workflow artifact and does **not** create a GitHub
+release. Verifying the artifact first is what makes step 8 of the cutover sequence possible: nothing
+is published until the evidence has been checked.
 
 It executes exactly these commands in order, selects the signer identity for the tag, reads the
 image digest from `release-evidence.txt`, and exits non-zero if any artefact fails. It is operator
