@@ -3,10 +3,10 @@
 // This is a measurement tool, not a release gate. It always exits 0 so that a
 // known gap cannot silently become a CI failure. The gating regression suite
 // remains `deno task eval` over `evals/cases.jsonl`.
-import { classify } from "../src/classifier.ts";
+import { classify, createDetectors } from "../src/classifier.ts";
 import { loadConfig } from "../src/config.ts";
 import { decide } from "../src/policy.ts";
-import { FINDING_KINDS, type FindingKind } from "../src/types.ts";
+import { FINDING_KINDS, type FindingKind, SENSITIVITIES, type Sensitivity } from "../src/types.ts";
 
 interface Case {
   id: string;
@@ -28,7 +28,17 @@ interface Miss {
 }
 
 const supported = new Set<string>(FINDING_KINDS);
-const config = await loadConfig("config/egrysa.example.json");
+const requested = Deno.args.find((arg) => arg.startsWith("--sensitivity="))?.split("=")[1];
+if (requested !== undefined && !SENSITIVITIES.includes(requested as Sensitivity)) {
+  console.error(`--sensitivity must be one of ${SENSITIVITIES.join(", ")}`);
+  Deno.exit(2);
+}
+const loaded = await loadConfig("config/egrysa.example.json");
+const config = requested
+  ? { ...loaded, policy: { ...loaded.policy, sensitivity: requested as Sensitivity } }
+  : loaded;
+const sensitivity = config.policy.sensitivity ?? "balanced";
+const detectors = createDetectors(config);
 const cases = (await Deno.readTextFile("evals/adversarial.jsonl"))
   .trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Case);
 
@@ -46,7 +56,7 @@ const bump = (kind: string, field: "tp" | "fp" | "fn") => {
 };
 
 for (const item of cases) {
-  const findings = await classify(item.prompt, config);
+  const findings = await classify(item.prompt, config, detectors);
   const observed = new Set(findings.map((finding) => finding.kind as string));
   const expected = new Set(item.expectedKinds);
 
@@ -57,9 +67,12 @@ for (const item of cases) {
   }
 
   const missing = [...expected].filter((kind) => !observed.has(kind));
+  // A negative control that fired has not "passed", even though it is missing
+  // nothing. Counting it as clean would report a false positive as a success.
+  const falsePositive = expected.size === 0 && observed.size > 0;
   const category = byCategory.get(item.category) ?? { total: 0, detected: 0 };
   category.total++;
-  if (missing.length === 0) category.detected++;
+  if (missing.length === 0 && !falsePositive) category.detected++;
   byCategory.set(item.category, category);
 
   if (missing.length > 0) {
@@ -106,6 +119,7 @@ const perKind = [...counts.entries()]
 const detected = cases.length - undisclosedMisses.length - disclosedMisses.length;
 const report = {
   suite: "egrysa-adversarial-v1",
+  sensitivity,
   note: "Measurement only. Not a release gate. Semantic detector off, shipped example config.",
   cases: cases.length,
   detected,
@@ -129,7 +143,7 @@ if (Deno.args.includes("--json")) {
   console.log(JSON.stringify(report, null, 2));
 } else {
   const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
-  console.log(`\nEgrysa adversarial detector report (${report.suite})`);
+  console.log(`\nEgrysa adversarial detector report (${report.suite}, sensitivity=${sensitivity})`);
   console.log(`${report.note}\n`);
   console.log(
     `  cases ${report.cases}   fully detected ${detected}   ` +
