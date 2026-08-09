@@ -207,12 +207,82 @@ passes at 100%.
 Both numbers are true and neither alone is honest. A reviewer should read the regression suite as
 "does it work as designed" and this suite as "where are the edges."
 
+## Realistic-traffic corpus
+
+The adversarial corpus measures the edges. It says nothing about how the detector behaves on the
+traffic an enterprise actually sends, because it is almost entirely positive cases and over-samples
+shapes chosen to be hard.
+
+A second corpus measures that instead:
+
+```sh
+deno task eval:scenarios
+```
+
+Suite `egrysa-scenarios-v1`, 67 synthetic business documents across financial services, healthcare,
+technology, retail, human resources, legal, public sector, manufacturing, and cross-industry work.
+Each case is a document an employee would plausibly paste into an assistant: a support ticket, an
+incident postmortem, a pasted CSV or SQL result, a referral letter, a recruiting email, a
+maintenance log, a runbook. **Thirty-two of the sixty-seven contain nothing sensitive**, because
+most real traffic does not, and a corpus without clean documents cannot measure whether ordinary
+work gets blocked.
+
+| Measure                             | Result   |
+| ----------------------------------- | -------- |
+| Cases fully detected                | 64/67    |
+| Undisclosed misses                  | **0**    |
+| Misses under a documented exclusion | 3        |
+| False positives                     | **0/32** |
+
+Per kind, every deterministic class reached 100% recall **and** 100% precision: `email` 13/13,
+`api_secret` 6/6, `phone` 6/6, `ssn` 4/4, `ipv4` 4/4, `credit_card` 2/2, `iban` 2/2,
+`confidential_term` 2/2, `private_key` 1/1. The only three misses are the documented exclusions:
+person names, physical addresses, and IPv6.
+
+Read the two corpora together. On realistic traffic the floor is strong. Under deliberate pressure
+it is not, and the difference between 64/67 here and 77/102 there is the honest measure of how much
+of the gap is reachable by ordinary use versus by adversarial construction.
+
+### What this corpus found that the adversarial one could not
+
+Every clean document in the corpus is **denied** by the shipped example configuration, with the
+reason `raw remote egress is disabled for this provider`. A prompt containing nothing sensitive
+takes the `allow_raw` path, which requires a provider marked `local` or `dataPolicy.allowRaw: true`;
+the example `openai` provider is neither.
+
+The behaviour is internally consistent, and the documented quickstart avoids it by selecting the
+local provider. But the effect is counter-intuitive and worth stating: a prompt containing an email
+address is transformed and forwarded, while a prompt containing nothing sensitive is refused. Under
+the shipped example configuration the safer request is the more likely one to be blocked.
+
+An adversarial corpus cannot surface this, because it contains almost no clean documents. Operators
+pointing Egrysa at a remote provider should decide deliberately whether raw egress of non-sensitive
+prompts is approved, and set `dataPolicy.allowRaw` to record that decision.
+
 ## Independence
 
-This corpus was authored by the maintainers alongside the engine it tests. That is a real
-limitation: a corpus written by the same party that wrote the detector will tend to probe the
-failure modes that party already imagines. It is published so it can be inspected, disputed, and
+Both corpora were authored by the maintainers alongside the engine they test. That is a real
+limitation: a corpus written by the same party that wrote the detector tends to probe the failure
+modes that party already imagines. They are published so they can be inspected, disputed, and
 extended.
+
+The two were written under different protocols, and the difference matters when weighing the
+results:
+
+- The **adversarial corpus** was written with the pattern table open. It is white-box by
+  construction and its coverage is bounded by what the author could see.
+- The **scenario corpus** was written from business situations rather than from the taxonomy: choose
+  a sector and a document type, write what an employee in that role would actually paste, and label
+  whatever sensitive values landed there naturally. It was measured once and published as measured,
+  with no case revised after seeing a result. That protocol reduces the bias but does not remove it,
+  because the same author had prior knowledge of the implementation.
+
+Neither is the independent corpus the 0.1 gate requires. The strongest available substitutes, in
+increasing order of value, are: cases generated from external format authorities such as the
+relevant RFCs and issuer specifications; cases written by a reviewer who has never opened `src/`;
+and a customer's own corpus over their own approved taxonomy, which is what acceptance gate 2 in the
+[CISO brief](CISO_BRIEF.md) actually contemplates. Contributions of cases that break the detector
+are explicitly welcome.
 
 An independent adversarial corpus remains an open requirement before the 0.1 alpha gate in the
 [roadmap](../ROADMAP.md), and contributions of cases that break the detector are explicitly welcome.

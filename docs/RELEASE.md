@@ -45,6 +45,21 @@ Verify the tag signature, GitHub attestation, cosign identity, image digest, and
 the digest into a deployment manifest. Never deploy a mutable tag. The all-zero digest in the sample
 manifest is an intentional fail-closed placeholder.
 
+The commands below are the authoritative procedure. To run them without transcribing:
+
+```sh
+tools/verify-release.sh v0.1.0-alpha.4
+```
+
+It executes exactly these commands in order, selects the signer identity for the tag, reads the
+image digest from `release-evidence.txt`, and exits non-zero if any artefact fails. It is operator
+tooling and deliberately not a `deno task`: verification needs `cosign` and `gh`, and the gateway's
+task definitions grant neither subprocess nor FFI permission.
+
+An evaluator who would rather not trust a script from the same repository should run the commands
+below directly. That is the point of publishing them, and the script exists to remove transcription
+errors, not to replace independent verification.
+
 Download the release assets, then verify their integrity and the published registry evidence. Set
 `TAG` to the exact release and `IMAGE` to the digest reference recorded in `release-evidence.txt`:
 
@@ -89,6 +104,25 @@ Releases signed after the move derive their identity from `$GITHUB_REPOSITORY` i
 `.github/workflows/release.yml`, so they require no manual selection and fall through to the
 `Intellumia/egrysa` default above.
 
+### Verify before announcing
+
+The release workflow attests provenance only on a tag push, so no pull request exercises signing or
+attestation. A dry run through `workflow_dispatch` builds, scans, and generates an SBOM, but it does
+**not** execute the attestation step and therefore cannot validate it.
+
+The consequence is that a change to the signing or attestation path is first exercised by a real
+tag. Treat the next tag as the verification release: tag it, announce nothing, run
+`tools/verify-release.sh` against it, and only then decide whether to publish or announce. If it
+fails, advance the alpha suffix and repeat. An unannounced release that fails verification costs
+nothing; an announced one that fails is indistinguishable from tampering to anyone following these
+instructions.
+
+Recorded results:
+
+| Tag              | Verified   | Result                                                   |
+| ---------------- | ---------- | -------------------------------------------------------- |
+| `v0.1.0-alpha.3` | 2026-08-09 | 7 of 7 checks passed, using the pre-move signer identity |
+
 The signed checksum bundle makes the retained files independently verifiable even if a registry or
 API later stops indexing an attached artifact. The registry checks additionally prove that the
 currently retrievable image attachments match the release identity.
@@ -109,11 +143,41 @@ currently retrievable image attachments match the release identity.
 If any control cannot be enabled or any scan fails, stop the cutover. Do not weaken a workflow or
 publish a release to work around the failure.
 
+### Control status verified on 2026-08-09
+
+Verified against the GitHub API rather than restated from the cutover record below.
+
+| Control                                           | Status       | How verified                                                                                                      |
+| ------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `main` protected, force push and deletion blocked | enabled      | branch protection API                                                                                             |
+| Signed commits required                           | enabled      | `required_signatures`                                                                                             |
+| Administrators included in protection             | enabled      | `enforce_admins`                                                                                                  |
+| Required checks before merge                      | enabled      | Test and audit, Security baseline, CodeQL, Dependency review                                                      |
+| Required approving reviews                        | **0**        | `required_pull_request_reviews` is not configured                                                                 |
+| CodeQL code scanning                              | enabled      | required check on `main`                                                                                          |
+| Dependabot security updates                       | enabled      | `security_and_analysis`                                                                                           |
+| Push protection                                   | active       | empirically blocks a push containing a recognised credential; GitHub applies it to public repositories by default |
+| **Secret scanning alerts**                        | **disabled** | `GET /secret-scanning/alerts` returns `404 Secret scanning is disabled on this repository`                        |
+| Private vulnerability reporting                   | enabled      | tested by a non-maintainer, see below                                                                             |
+
+Two of these deserve a reviewer's attention rather than a footnote. **Secret scanning alerts are
+off**, so a credential already present in history, or one introduced through a path push protection
+does not cover, would not raise an alert. Push protection is the only active secret control. And
+**no approving review is required to merge**, so protection enforces checks rather than a second
+pair of eyes; with a single maintainer this is a stated bus-factor consequence, not an oversight.
+
+Enabling secret scanning will immediately alert on `evals/adversarial.jsonl`, which contains
+deliberately credential-shaped fixtures. Those alerts are expected and should be dismissed as test
+fixtures rather than treated as findings. See [detection coverage](DETECTION_COVERAGE.md) for why
+the corpus must contain them.
+
 ### Cutover status on 2026-07-19
 
-- Steps 1 through 5 are complete: the repository is public, `main` is protected, signed commits are
-  required, and CodeQL, secret scanning, push protection, Dependabot security updates, and private
-  vulnerability reporting are enabled.
+- Steps 1 through 5 were recorded complete at cutover: the repository is public, `main` is
+  protected, signed commits are required, and CodeQL, secret scanning, push protection, Dependabot
+  security updates, and private vulnerability reporting were reported enabled. The secret-scanning
+  element of that record does not match the verified status above and is retained only as the
+  original entry.
 - Public CI run [`29415491535`](https://github.com/Intellumia/egrysa/actions/runs/29415491535)
   passed source verification, the independent security baseline, and CodeQL on protected `main`.
 - The private reporting route was tested by non-maintainer `ksundeep9211` through closed,
