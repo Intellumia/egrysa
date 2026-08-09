@@ -73,12 +73,17 @@ detector recognizes OpenAI-style `sk-` keys, AWS access key identifiers, and cla
 It does not currently recognize GitHub fine-grained tokens, Google, Slack, GitLab, Stripe, SendGrid,
 npm, Azure connection strings, JSON Web Tokens, or passwords embedded in database and HTTP URLs.
 
-This gap has independent corroboration. Publishing this corpus was initially blocked by GitHub push
-protection, which identified the synthetic Slack, Stripe, and Twilio values as credentials. In other
-words, a general-purpose scanner already flags several formats that Egrysa's own detector passes
-through. The corpus values were then made structurally invalid so they no longer trigger a scanner,
-while retaining the vendor prefixes the detector needs to match. They are non-functional by
-construction and safe to publish.
+This gap has independent corroboration from two scanners the project already runs. Publishing the
+corpus was blocked by GitHub push protection, which identified the synthetic Slack, Stripe, and
+Twilio values as credentials. The Trivy secret scanner in the CI security baseline then flagged nine
+findings in the same file, including GitHub fine-grained and OAuth tokens and a GitLab token. Both
+general-purpose scanners detect formats that Egrysa's own detector passes through.
+
+That result also explains a necessary exception. A credential fixture that a secret scanner ignores
+would not be testing anything, so this corpus unavoidably trips secret scanning. The security
+baseline therefore carries an allowance scoped to the single path `evals/adversarial.jsonl`, defined
+in [`.trivy/secret.yaml`](../.trivy/secret.yaml). Every other file is scanned normally, the fixture
+values are structurally non-functional, and GitHub push protection stays enabled repository-wide.
 
 **Encoded values are not decoded.** Detection operates on the literal text. URL-encoded, base64,
 JSON-escaped, and HTML-entity representations pass through unmatched. This matters because pasted

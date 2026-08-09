@@ -45,6 +45,9 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with: { persist-credentials: false }
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          # Scopes secret scanning around the synthetic detector corpus only.
+          TRIVY_SECRET_CONFIG: .trivy/secret.yaml
         with:
           scan-type: fs
           scan-ref: .
