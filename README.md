@@ -107,6 +107,47 @@ Potential paid enterprise work belongs above this boundary: identity and tenant 
 durable evidence export, HSM/KMS integration, support, certified release processes, and deployment
 assurance. It must not depend on observing customer prompt content.
 
+## Evaluate without a model
+
+The fastest way to see the boundary work. This path needs no model, no download, and no provider
+key. It exercises classification, policy, surrogate replacement, local recomposition, streaming, and
+signed receipts against a stub endpoint that speaks the OpenAI-compatible API and runs no inference.
+
+```sh
+deno task keygen > .env.stub   # local-only keys
+deno task stub                 # terminal 1: stub provider on 127.0.0.1:11435
+deno task dev:stub             # terminal 2: gateway on 127.0.0.1:8787
+```
+
+Then, in a third terminal:
+
+```sh
+set -a; source .env.stub; set +a
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer $EGRYSA_CLIENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"stub-echo","messages":[{"role":"user","content":"Email alex@example.com from host 192.0.2.44 about the incident."}]}'
+```
+
+The client receives the original values, recomposed locally:
+
+```text
+Stub provider received: Email alex@example.com from host 192.0.2.44 about the incident.
+```
+
+The stub terminal prints what actually left the gateway:
+
+```text
+[user] Email __EGRYSA_EMAIL_0001_cfb612133dc6__ from host __EGRYSA_IPV4_0002_b7f00fa09957__ about the incident.
+```
+
+That difference is the control boundary. Response headers carry `x-egrysa-decision: transform` and
+an `x-egrysa-receipt` identifier. Add `"stream": true` to exercise the same path over SSE, where
+bounded holdback recomposition reassembles surrogates split across chunk boundaries.
+
+The stub is evaluation scaffolding in `tools/`, not part of the data plane. For measured detection
+coverage, see [detection coverage](docs/DETECTION_COVERAGE.md).
+
 ## Local evaluation
 
 Requirements: Deno 2.9.x (CI pins 2.9.2) and Ollama for the default local path. The repository has
