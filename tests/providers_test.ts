@@ -41,28 +41,73 @@ Deno.test("Anthropic end_turn maps to the OpenAI stop finish reason", async () =
   }
 });
 
-Deno.test("Anthropic emulation round-trips surrogates through OpenAI SSE framing", async () => {
+// Anthropic frames, emitted the way the provider does: one event per SSE block.
+function anthropicSse(events: Array<Record<string, unknown>>): string {
+  return events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join("");
+}
+
+function sseResponse(body: string): Response {
+  return new Response(body, { headers: { "content-type": "text/event-stream" } });
+}
+
+Deno.test("native Anthropic streaming recomposes a surrogate split across deltas", async () => {
   Deno.env.set("TEST_ANTHROPIC_KEY", "test-key");
   const token = "__EGRYSA_EMAIL_0001_abc123__";
-  await withAnthropicServer(() =>
-    Response.json({
-      id: "anthropic-stream",
-      model: "approved-model",
-      content: [{ type: "text", text: `Confirmed ${token}` }],
-      stop_reason: "end_turn",
-      usage: { input_tokens: 5, output_tokens: 2 },
-    }), async (baseUrl) => {
+  const midpoint = Math.floor(token.length / 2);
+  await withAnthropicServer(async (request) => {
+    const body = await request.json() as Record<string, unknown>;
+    if (body.stream !== true) throw new Error("gateway did not request a native stream");
+    // The token is deliberately cut in half so bounded holdback has to
+    // reassemble it, which native chunking makes the common case.
+    return sseResponse(anthropicSse([
+      {
+        type: "message_start",
+        message: { id: "anthropic-stream", model: "approved-model", role: "assistant" },
+      },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: `Confirmed ${token.slice(0, midpoint)}` },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: token.slice(midpoint) },
+      },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 2 } },
+      { type: "message_stop" },
+    ]));
+  }, async (baseUrl) => {
     const invocation = await invokeProvider(anthropicProvider(baseUrl), {
       model: "approved-model",
       messages: [{ role: "user", content: `Email ${token}` }],
       stream: true,
       stream_options: { include_usage: true },
     }, 5_000);
-    if (invocation.type !== "stream" || invocation.downgraded.join(",") !== "stream-emulated") {
-      throw new Error("Anthropic stream was not emulated and disclosed");
+    if (invocation.type !== "stream") throw new Error("expected a stream");
+    if (invocation.emulated) throw new Error("Anthropic streaming is still emulated");
+    if (invocation.downgraded.includes("stream-emulated")) {
+      throw new Error("a retired downgrade is still disclosed");
     }
+    // Two layers, tested separately. The translator must deliver a frame per
+    // upstream delta; the recomposer then applies bounded holdback, which
+    // legitimately coalesces small deltas so a split surrogate can be rejoined.
+    const [forRecomposition, forFraming] = invocation.response.body!.tee();
+
+    const rawFrames = parseOpenAiSse(await new Response(forFraming).text());
+    const contentFrames = rawFrames.filter((frame) => {
+      const choice = (frame.choices as Array<Record<string, unknown>> | undefined)?.[0];
+      const delta = choice?.delta as Record<string, unknown> | undefined;
+      return typeof delta?.content === "string" && delta.content.length > 0;
+    });
+    // Emulation produced exactly one content frame. More than one proves tokens
+    // now flow as they arrive rather than after the full response.
+    if (contentFrames.length < 2) throw new Error("stream was not delivered incrementally");
+
     const output = await new Response(recomposeOpenAiStream(
-      invocation.response.body!,
+      forRecomposition,
       new Map([[token, "stream@example.com"]]),
       (error) => {
         throw error;
@@ -70,48 +115,79 @@ Deno.test("Anthropic emulation round-trips surrogates through OpenAI SSE framing
       invocation.complete,
     )).text();
     const frames = parseOpenAiSse(output);
+    if (!output.includes("stream@example.com")) {
+      throw new Error("a surrogate split across deltas was not recomposed");
+    }
     if (
-      !output.includes("stream@example.com") || frames.length !== 3 ||
       !frames.some((frame) =>
-        frame.choices instanceof Array && frame.choices.length === 0 &&
-        frame.usage !== undefined
+        frame.choices instanceof Array && frame.choices.length === 0 && frame.usage !== undefined
       )
-    ) throw new Error("emulated Anthropic stream failed recomposition or usage framing");
+    ) throw new Error("usage frame was not emitted");
     assertStableTemplate(frames, "anthropic-stream", "approved-model");
   });
   Deno.env.delete("TEST_ANTHROPIC_KEY");
 });
 
-Deno.test("Anthropic tool calls use valid OpenAI chunk deltas during emulation", async () => {
+Deno.test("native Anthropic tool calls stream as incremental OpenAI deltas", async () => {
   Deno.env.set("TEST_ANTHROPIC_KEY", "test-key");
   await withAnthropicServer(() =>
-    Response.json({
-      id: "anthropic-tool-stream",
-      model: "approved-model",
-      content: [{ type: "tool_use", id: "call_weather", name: "weather", input: { city: "Pune" } }],
-      stop_reason: "tool_use",
-      usage: { input_tokens: 8, output_tokens: 4 },
-    }), async (baseUrl) => {
+    Promise.resolve(sseResponse(anthropicSse([
+      {
+        type: "message_start",
+        message: { id: "anthropic-tool-stream", model: "approved-model", role: "assistant" },
+      },
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "call_weather", name: "weather", input: {} },
+      },
+      // Arguments arrive as fragments, which is what native tool streaming does.
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: '{"city"' },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: ':"Pune"}' },
+      },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 4 } },
+      { type: "message_stop" },
+    ]))), async (baseUrl) => {
     const invocation = await invokeProvider(anthropicProvider(baseUrl), {
       model: "approved-model",
       messages: [{ role: "user", content: "Check the weather" }],
       stream: true,
-      tools: [{
-        type: "function",
-        function: { name: "weather", parameters: { type: "object" } },
-      }],
+      tools: [{ type: "function", function: { name: "weather", parameters: { type: "object" } } }],
       tool_choice: "required",
     }, 5_000);
-    if (invocation.type !== "stream") throw new Error("expected emulated stream");
+    if (invocation.type !== "stream") throw new Error("expected a stream");
     const frames = parseOpenAiSse(await invocation.response.text());
-    const firstChoice = (frames[0]?.choices as Array<Record<string, unknown>> | undefined)?.[0];
-    const delta = firstChoice?.delta as Record<string, unknown> | undefined;
-    const call = (delta?.tool_calls as Array<Record<string, unknown>> | undefined)?.[0];
-    const fn = call?.function as Record<string, unknown> | undefined;
-    if (
-      call?.index !== 0 || call.id !== "call_weather" || fn?.name !== "weather" ||
-      JSON.stringify(JSON.parse(String(fn?.arguments))) !== '{"city":"Pune"}'
-    ) throw new Error("tool call did not conform to the OpenAI chunk schema");
+
+    const calls = frames.flatMap((frame) => {
+      const choice = (frame.choices as Array<Record<string, unknown>> | undefined)?.[0];
+      const delta = choice?.delta as Record<string, unknown> | undefined;
+      return (delta?.tool_calls as Array<Record<string, unknown>> | undefined) ?? [];
+    });
+    const opening = calls.find((call) => call.id !== undefined);
+    const openingFn = opening?.function as Record<string, unknown> | undefined;
+    if (opening?.index !== 0 || opening.id !== "call_weather" || openingFn?.name !== "weather") {
+      throw new Error("tool call was not opened with an OpenAI-shaped delta");
+    }
+    // Concatenating the fragments must yield the arguments the provider sent.
+    const args = calls.map((call) => {
+      const fn = call.function as Record<string, unknown> | undefined;
+      return typeof fn?.arguments === "string" ? fn.arguments : "";
+    }).join("");
+    if (JSON.stringify(JSON.parse(args)) !== '{"city":"Pune"}') {
+      throw new Error(`tool arguments did not reassemble: ${args}`);
+    }
+    const finish = frames.map((frame) =>
+      ((frame.choices as Array<Record<string, unknown>> | undefined)?.[0])?.finish_reason
+    ).find((reason) => typeof reason === "string");
+    if (finish !== "tool_calls") throw new Error(`finish reason was ${finish}`);
     assertStableTemplate(frames, "anthropic-tool-stream", "approved-model");
     invocation.complete();
   });
