@@ -16,8 +16,23 @@ import { hasSurrogateResidueAfterRecomposition, recomposeChecked } from "./surro
 import { createSemanticDetector, REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
 import type { AppConfig, ChatRequest, ReceiptDetector } from "./types.ts";
 
+// Receipt identifiers for requests held under review sensitivity. Held in
+// memory only: a restart clears them, and the caller simply receives a fresh
+// hold on the next attempt.
+const MAX_PENDING_REVIEWS = 1024;
+
 export class Gateway {
   readonly metrics = new Metrics();
+  private readonly pendingReviews = new Set<string>();
+
+  // A hold is cleared by naming the receipt this gateway issued for it, so an
+  // acknowledgement cannot be forged by sending an arbitrary header value.
+  private acknowledged(request: Request): boolean {
+    const token = request.headers.get("x-egrysa-acknowledge")?.trim();
+    if (!token || !this.pendingReviews.has(token)) return false;
+    this.pendingReviews.delete(token);
+    return true;
+  }
 
   private constructor(
     private readonly config: AppConfig,
@@ -145,6 +160,33 @@ export class Gateway {
           ...detectorReceipt,
         });
         return problem(403, "policy_denied", policy.reason, receipt.id);
+      }
+
+      if (policy.reviewRequired && !this.acknowledged(request)) {
+        this.metrics.denied++;
+        const receipt = await this.receipts.create({
+          requestCanonical: originalJson,
+          workloadId,
+          decision: "deny",
+          provider: null,
+          model: chat.model,
+          findings,
+          transformedFields: 0,
+          ...detectorReceipt,
+        });
+        this.pendingReviews.add(receipt.id);
+        // Bounded so a stream of held requests cannot grow memory without limit.
+        if (this.pendingReviews.size > MAX_PENDING_REVIEWS) {
+          const oldest = this.pendingReviews.values().next();
+          if (!oldest.done) this.pendingReviews.delete(oldest.value);
+        }
+        return problem(
+          409,
+          "review_required",
+          "A low-precision finding in a blocked data class needs a human decision. " +
+            "Retry with the x-egrysa-acknowledge header set to this receipt id to proceed.",
+          receipt.id,
+        );
       }
 
       if (

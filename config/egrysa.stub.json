@@ -7,45 +7,16 @@
   "maxResponseBytes": 33554432,
   "requestTimeoutMs": 60000,
   "receiptCapacity": 10000,
-  "receiptLogPath": "data/receipts.jsonl",
+  "receiptLogPath": "data/receipts.stub.jsonl",
   "receiptMaxLogBytes": 67108864,
   "receiptChainId": "egrysa-local-alpha",
   "providers": [
     {
-      "id": "openai",
-      "kind": "openai",
-      "baseUrl": "https://api.openai.com",
-      "apiKeyEnv": "OPENAI_API_KEY",
-      "allowedModels": [
-        "gpt-5.2",
-        "gpt-5-mini"
-      ],
-      "dataPolicy": {
-        "training": "disabled",
-        "retention": "standard",
-        "allowRaw": false
-      }
-    },
-    {
-      "id": "anthropic",
-      "kind": "anthropic",
-      "baseUrl": "https://api.anthropic.com",
-      "apiKeyEnv": "ANTHROPIC_API_KEY",
-      "allowedModels": [
-        "claude-sonnet-4-20250514"
-      ],
-      "dataPolicy": {
-        "training": "disabled",
-        "retention": "standard",
-        "allowRaw": false
-      }
-    },
-    {
       "id": "local",
       "kind": "openai-compatible",
-      "baseUrl": "http://localhost:11434/v1",
+      "baseUrl": "http://127.0.0.1:11435/v1",
       "allowedModels": [
-        "gpt-oss:20b"
+        "stub-echo"
       ],
       "local": true,
       "dataPolicy": {
@@ -58,7 +29,7 @@
   "semanticDetector": {
     "enabled": false,
     "providerId": "local",
-    "model": "gpt-oss:20b",
+    "model": "stub-echo",
     "timeoutMs": 10000,
     "totalTimeoutMs": 30000,
     "maxInputBytes": 16384,
@@ -70,7 +41,7 @@
     ]
   },
   "policy": {
-    "defaultProvider": "openai",
+    "defaultProvider": "local",
     "localProvider": "local",
     "sensitivity": "balanced",
     "blockKinds": [

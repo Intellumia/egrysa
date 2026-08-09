@@ -141,3 +141,65 @@ function finding(
 function overlaps(left: Finding, right: Finding): boolean {
   return left.start < right.end && right.start < left.end;
 }
+
+Deno.test("classifier detects vendor-namespaced credential formats", async () => {
+  const cases: Array<[string, string]> = [
+    ["github fine-grained", "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"],
+    ["gitlab", "glpat-ABCDEFGHIJKLMNOPQRST"],
+    ["google", "AIzaSyD-1234567890abcdefghijklmnopqrstu"],
+    ["slack", "xoxb-123456789012-1234567890123-EXAMPLE-ONLY-NOT-A-REAL-TOKEN"],
+    ["stripe", "sk_live_51EXAMPLE-ONLY-NOT-A-REAL-KEY"],
+    ["npm", "npm_abcdefghijklmnopqrstuvwxyz0123456789ab"],
+    ["jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27u"],
+  ];
+  for (const [label, value] of cases) {
+    const kinds = new Set(
+      (await classify(`token ${value} here`, testConfig())).map((finding) => finding.kind),
+    );
+    if (!kinds.has("api_secret")) throw new Error(`${label} credential not detected`);
+  }
+});
+
+Deno.test("classifier reports a URL-embedded password as a secret, not an address", async () => {
+  const findings = await classify(
+    "DATABASE_URL=postgres://appuser:s3cr3tP4ssw0rdValue@db.internal:5432/production",
+    testConfig(),
+  );
+  const kinds = new Set(findings.map((finding) => finding.kind));
+  if (!kinds.has("api_secret")) throw new Error("URL credential not classified as a secret");
+  if (kinds.has("email")) throw new Error("URL credential still classified as an email");
+});
+
+Deno.test("classifier detects additional private key envelopes", async () => {
+  for (const label of ["ENCRYPTED PRIVATE KEY", "PGP PRIVATE KEY BLOCK", "DSA PRIVATE KEY"]) {
+    const text = `-----BEGIN ${label}-----\nMIIEvQIBADANBgkqhkiG9w0BAQ\n-----END ${label}-----`;
+    const kinds = new Set((await classify(text, testConfig())).map((finding) => finding.kind));
+    if (!kinds.has("private_key")) throw new Error(`${label} not detected`);
+  }
+});
+
+Deno.test("classifier detects an IBAN written in conventional groups", async () => {
+  const kinds = new Set(
+    (await classify("Account GB82 WEST 1234 5698 7654 32 on file.", testConfig())).map((finding) =>
+      finding.kind
+    ),
+  );
+  if (!kinds.has("iban")) throw new Error("grouped IBAN not detected");
+});
+
+Deno.test("broadened credential patterns do not match ordinary identifiers", async () => {
+  const benign = [
+    "commit 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+    "digest sha256:25675bd2a125b59bdcfbb6592ec5c332a2bc56e0dabf038184d8b2c6aec45c3b",
+    "id 550e8400-e29b-41d4-a716-446655440000",
+    "artifact build-20260809-abcdefghijklmnop",
+    "fixture VGhpcyBpcyBub3QgYSBzZWNyZXQgdmFsdWU=",
+    "endpoint https://example.com/v1/models",
+  ];
+  for (const text of benign) {
+    const findings = await classify(text, testConfig());
+    if (findings.some((finding) => finding.kind === "api_secret")) {
+      throw new Error(`false positive on: ${text}`);
+    }
+  }
+});

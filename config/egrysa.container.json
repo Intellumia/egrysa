@@ -1,5 +1,8 @@
 {
-  "listen": { "hostname": "0.0.0.0", "port": 8787 },
+  "listen": {
+    "hostname": "0.0.0.0",
+    "port": 8787
+  },
   "maxRequestBytes": 1048576,
   "maxResponseBytes": 33554432,
   "requestTimeoutMs": 60000,
@@ -13,24 +16,43 @@
       "kind": "openai",
       "baseUrl": "https://api.openai.com",
       "apiKeyEnv": "OPENAI_API_KEY",
-      "allowedModels": ["gpt-5.2", "gpt-5-mini"],
-      "dataPolicy": { "training": "disabled", "retention": "standard", "allowRaw": false }
+      "allowedModels": [
+        "gpt-5.2",
+        "gpt-5-mini"
+      ],
+      "dataPolicy": {
+        "training": "disabled",
+        "retention": "standard",
+        "allowRaw": false
+      }
     },
     {
       "id": "anthropic",
       "kind": "anthropic",
       "baseUrl": "https://api.anthropic.com",
       "apiKeyEnv": "ANTHROPIC_API_KEY",
-      "allowedModels": ["claude-sonnet-4-20250514"],
-      "dataPolicy": { "training": "disabled", "retention": "standard", "allowRaw": false }
+      "allowedModels": [
+        "claude-sonnet-4-20250514"
+      ],
+      "dataPolicy": {
+        "training": "disabled",
+        "retention": "standard",
+        "allowRaw": false
+      }
     },
     {
       "id": "local",
       "kind": "openai-compatible",
       "baseUrl": "http://localhost:11434/v1",
-      "allowedModels": ["gpt-oss:20b"],
+      "allowedModels": [
+        "gpt-oss:20b"
+      ],
       "local": true,
-      "dataPolicy": { "training": "unknown", "retention": "none", "allowRaw": true }
+      "dataPolicy": {
+        "training": "unknown",
+        "retention": "none",
+        "allowRaw": true
+      }
     }
   ],
   "semanticDetector": {
@@ -41,17 +63,43 @@
     "totalTimeoutMs": 30000,
     "maxInputBytes": 16384,
     "onDetectorFailure": "degrade",
-    "kinds": ["person_name", "physical_address", "semantic_confidential"]
+    "kinds": [
+      "person_name",
+      "physical_address",
+      "semantic_confidential"
+    ]
   },
   "policy": {
     "defaultProvider": "openai",
     "localProvider": "local",
-    "blockKinds": ["credit_card", "private_key", "api_secret", "ssn"],
-    "localOnlyKinds": ["confidential_term", "semantic_confidential"],
-    "transformKinds": ["email", "phone", "ipv4", "iban", "person_name", "physical_address"],
+    "sensitivity": "balanced",
+    "blockKinds": [
+      "credit_card",
+      "private_key",
+      "api_secret",
+      "ssn"
+    ],
+    "localOnlyKinds": [
+      "confidential_term",
+      "semantic_confidential"
+    ],
+    "transformKinds": [
+      "email",
+      "phone",
+      "ipv4",
+      "iban",
+      "person_name",
+      "physical_address"
+    ],
     "sensitiveTerms": [
-      { "term": "Project Nightingale", "label": "initiative" },
-      { "term": "Example Acquisition Target", "label": "organization" }
+      {
+        "term": "Project Nightingale",
+        "label": "initiative"
+      },
+      {
+        "term": "Example Acquisition Target",
+        "label": "organization"
+      }
     ]
   }
 }
