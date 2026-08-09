@@ -74,9 +74,11 @@ downgrade occurred.
 
 Features that change the response contract are not silently removed. Unsupported tools, required
 tool choice, streaming, stream usage options, temperature, or output-token bounds return a 422
-problem naming the capability before provider contact. Anthropic streaming is supported through a
-buffered OpenAI-SSE emulation and always discloses `stream-emulated`. If usage was requested through
-`stream_options.include_usage`, the emulation emits an OpenAI-shaped usage frame.
+problem naming the capability before provider contact. Anthropic streaming is native: the provider
+event stream is rewritten into OpenAI chunk frames as it arrives. No shipped provider is emulated,
+so `stream-emulated` is no longer emitted; the disclosure remains reserved for any provider added
+later that cannot stream natively. If usage was requested through `stream_options.include_usage`, a
+usage frame follows the final chunk.
 
 ## Provider conformance workflow
 
