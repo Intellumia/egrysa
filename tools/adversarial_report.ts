@@ -10,7 +10,9 @@ import { FINDING_KINDS, type FindingKind, SENSITIVITIES, type Sensitivity } from
 
 interface Case {
   id: string;
-  category: string;
+  category?: string;
+  sector?: string;
+  documentType?: string;
   scenario: string;
   prompt: string;
   expectedKinds: string[];
@@ -39,7 +41,10 @@ const config = requested
   : loaded;
 const sensitivity = config.policy.sensitivity ?? "balanced";
 const detectors = createDetectors(config);
-const cases = (await Deno.readTextFile("evals/adversarial.jsonl"))
+const corpusPath = Deno.args.find((arg) => arg.startsWith("--corpus="))?.split("=")[1] ??
+  "evals/adversarial.jsonl";
+const suite = corpusPath.includes("scenarios") ? "egrysa-scenarios-v1" : "egrysa-adversarial-v1";
+const cases = (await Deno.readTextFile(corpusPath))
   .trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Case);
 
 const counts = new Map<string, { tp: number; fp: number; fn: number }>();
@@ -70,17 +75,18 @@ for (const item of cases) {
   // A negative control that fired has not "passed", even though it is missing
   // nothing. Counting it as clean would report a false positive as a success.
   const falsePositive = expected.size === 0 && observed.size > 0;
-  const category = byCategory.get(item.category) ?? { total: 0, detected: 0 };
+  const group = item.category ?? item.sector ?? "uncategorised";
+  const category = byCategory.get(group) ?? { total: 0, detected: 0 };
   category.total++;
   if (missing.length === 0 && !falsePositive) category.detected++;
-  byCategory.set(item.category, category);
+  byCategory.set(group, category);
 
   if (missing.length > 0) {
     // A kind the engine does not model yet cannot be an undisclosed miss.
     const unsupported = missing.some((kind) => !supported.has(kind));
     const miss: Miss = {
       id: item.id,
-      category: item.category,
+      category: item.category ?? item.sector ?? "uncategorised",
       scenario: item.scenario,
       missing,
       observed: [...observed],
@@ -92,7 +98,7 @@ for (const item of cases) {
   if (expected.size === 0 && observed.size > 0) {
     falsePositives.push({
       id: item.id,
-      category: item.category,
+      category: item.category ?? item.sector ?? "uncategorised",
       scenario: item.scenario,
       missing: [],
       observed: [...observed],
@@ -118,7 +124,8 @@ const perKind = [...counts.entries()]
 
 const detected = cases.length - undisclosedMisses.length - disclosedMisses.length;
 const report = {
-  suite: "egrysa-adversarial-v1",
+  suite,
+  corpus: corpusPath,
   sensitivity,
   note: "Measurement only. Not a release gate. Semantic detector off, shipped example config.",
   cases: cases.length,
