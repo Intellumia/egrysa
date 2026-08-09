@@ -32,6 +32,9 @@ restricts models and endpoints, and records what policy was applied without reco
 | Human decision on ambiguity  | `policy.sensitivity: review` holds a low-precision finding, returns 409 with a receipt identifier and no matched value, and proceeds only on a single-use acknowledgement naming that receipt | Holds are tracked in memory and cleared by a restart; the acknowledging identity is the calling workload, not a named person |
 | Measured detection coverage  | Published per-class recall and precision against an adversarial corpus, reproducible with `deno task eval:adversarial` ([detection coverage](DETECTION_COVERAGE.md))                          | The corpus is maintainer-authored; encoding and obfuscation are open measured gaps                                           |
 
+A [pre-filled security questionnaire](SECURITY_QUESTIONNAIRE.md) answers the control questions an
+enterprise review normally sends, including the ones without a favourable answer.
+
 ## Evaluation boundary
 
 Use synthetic data, one business workflow, one local model, and one contracted remote API project.

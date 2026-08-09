@@ -109,11 +109,41 @@ currently retrievable image attachments match the release identity.
 If any control cannot be enabled or any scan fails, stop the cutover. Do not weaken a workflow or
 publish a release to work around the failure.
 
+### Control status verified on 2026-08-09
+
+Verified against the GitHub API rather than restated from the cutover record below.
+
+| Control                                           | Status       | How verified                                                                                                      |
+| ------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `main` protected, force push and deletion blocked | enabled      | branch protection API                                                                                             |
+| Signed commits required                           | enabled      | `required_signatures`                                                                                             |
+| Administrators included in protection             | enabled      | `enforce_admins`                                                                                                  |
+| Required checks before merge                      | enabled      | Test and audit, Security baseline, CodeQL, Dependency review                                                      |
+| Required approving reviews                        | **0**        | `required_pull_request_reviews` is not configured                                                                 |
+| CodeQL code scanning                              | enabled      | required check on `main`                                                                                          |
+| Dependabot security updates                       | enabled      | `security_and_analysis`                                                                                           |
+| Push protection                                   | active       | empirically blocks a push containing a recognised credential; GitHub applies it to public repositories by default |
+| **Secret scanning alerts**                        | **disabled** | `GET /secret-scanning/alerts` returns `404 Secret scanning is disabled on this repository`                        |
+| Private vulnerability reporting                   | enabled      | tested by a non-maintainer, see below                                                                             |
+
+Two of these deserve a reviewer's attention rather than a footnote. **Secret scanning alerts are
+off**, so a credential already present in history, or one introduced through a path push protection
+does not cover, would not raise an alert. Push protection is the only active secret control. And
+**no approving review is required to merge**, so protection enforces checks rather than a second
+pair of eyes; with a single maintainer this is a stated bus-factor consequence, not an oversight.
+
+Enabling secret scanning will immediately alert on `evals/adversarial.jsonl`, which contains
+deliberately credential-shaped fixtures. Those alerts are expected and should be dismissed as test
+fixtures rather than treated as findings. See [detection coverage](DETECTION_COVERAGE.md) for why
+the corpus must contain them.
+
 ### Cutover status on 2026-07-19
 
-- Steps 1 through 5 are complete: the repository is public, `main` is protected, signed commits are
-  required, and CodeQL, secret scanning, push protection, Dependabot security updates, and private
-  vulnerability reporting are enabled.
+- Steps 1 through 5 were recorded complete at cutover: the repository is public, `main` is
+  protected, signed commits are required, and CodeQL, secret scanning, push protection, Dependabot
+  security updates, and private vulnerability reporting were reported enabled. The secret-scanning
+  element of that record does not match the verified status above and is retained only as the
+  original entry.
 - Public CI run [`29415491535`](https://github.com/Intellumia/egrysa/actions/runs/29415491535)
   passed source verification, the independent security baseline, and CodeQL on protected `main`.
 - The private reporting route was tested by non-maintainer `ksundeep9211` through closed,
