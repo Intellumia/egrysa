@@ -43,6 +43,7 @@
   "policy": {
     "defaultProvider": "local",
     "localProvider": "local",
+    "sensitivity": "balanced",
     "blockKinds": [
       "credit_card",
       "private_key",

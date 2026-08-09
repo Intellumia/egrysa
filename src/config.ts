@@ -7,6 +7,7 @@ import {
   SEMANTIC_FINDING_KINDS,
   type SemanticDetectorConfig,
   type SemanticFindingKind,
+  SENSITIVITIES,
 } from "./types.ts";
 import { PROVIDER_CAPABILITY_TABLE } from "./provider_capabilities.ts";
 
@@ -80,6 +81,12 @@ export function validateConfig(config: AppConfig): void {
   }
   validateSemanticDetectorConfig(config);
   validatePolicyTaxonomy(config);
+  if (
+    config.policy.sensitivity !== undefined &&
+    !SENSITIVITIES.includes(config.policy.sensitivity)
+  ) {
+    throw new Error(`policy.sensitivity must be one of ${SENSITIVITIES.join(", ")}`);
+  }
   if (!Array.isArray(config.policy.sensitiveTerms)) {
     throw new Error("sensitiveTerms must be an array");
   }
