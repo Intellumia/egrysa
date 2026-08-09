@@ -22,6 +22,7 @@
     "test": "deno test --allow-env --allow-read --allow-write --allow-net=127.0.0.1",
     "eval": "deno run --no-prompt --allow-read=config,evals src/eval.ts",
     "eval:semantic": "deno run --no-prompt --allow-read=config,evals --allow-env=EGRYSA_CONFIG --allow-net=127.0.0.1,localhost,[::1] src/eval_semantic.ts",
+    "eval:adversarial": "deno run --no-prompt --allow-read=config,evals tools/adversarial_report.ts",
     "conformance": "deno run --allow-read=config --allow-write=evals/conformance tools/conformance.ts",
     "conformance:matrix": "deno run --no-prompt --allow-read=README.md,evals/conformance --allow-write=README.md tools/provider_matrix.ts",
     "acceptance": "deno test --allow-env --allow-read --allow-write --allow-net=127.0.0.1 tests/acceptance_test.ts",
