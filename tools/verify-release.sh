@@ -11,23 +11,33 @@
 # cosign and gh, and the gateway's task definitions grant neither subprocess nor
 # FFI permission. Keeping this out of the Deno task graph preserves that.
 #
-#   Usage: tools/verify-release.sh <tag> [--repo <owner/repo>]
-#   Example: tools/verify-release.sh v0.1.0-alpha.4
+#   Usage: tools/verify-release.sh <tag> [--repo <owner/repo>] [--from-dir <path>]
+#
+#   tools/verify-release.sh v0.1.0-alpha.4
+#       downloads the assets from the published release and verifies them
+#
+#   tools/verify-release.sh v0.1.0-alpha.4 --from-dir ./evidence
+#       verifies a directory of assets that has not been published yet, which is
+#       how the release process expects verification to happen: the tag workflow
+#       uploads evidence as a workflow artifact and does not create a release, so
+#       the artifact can be checked before anything is published at all
 
 set -uo pipefail
 
 TAG="${1:-}"
 REPO="Intellumia/egrysa"
+FROM_DIR=""
 shift || true
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
+    --from-dir) FROM_DIR="${2:-}"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
 if [ -z "$TAG" ]; then
-  echo "Usage: tools/verify-release.sh <tag> [--repo <owner/repo>]" >&2
+  echo "Usage: tools/verify-release.sh <tag> [--repo <owner/repo>] [--from-dir <path>]" >&2
   exit 2
 fi
 
@@ -54,7 +64,11 @@ report() { # report <status> <name> [detail]
 
 need() { command -v "$1" >/dev/null 2>&1; }
 
-for tool in gh cosign; do
+REQUIRED_TOOLS=(cosign)
+[ -n "$FROM_DIR" ] || REQUIRED_TOOLS+=(gh)
+# gh is still needed for provenance verification even when reading a directory.
+need gh || REQUIRED_TOOLS=("${REQUIRED_TOOLS[@]}")
+for tool in "${REQUIRED_TOOLS[@]}" gh; do
   if ! need "$tool"; then
     echo "Required tool not found: $tool" >&2
     echo "Install it and re-run. Verification cannot be faked in its absence." >&2
@@ -80,12 +94,22 @@ echo "  repository       $REPO"
 echo "  signer identity  $SIGNER_REPO"
 echo
 
-if ! gh release download "$TAG" --repo "$REPO" --dir "$WORKDIR" >/dev/null 2>&1; then
-  echo "Could not download release assets for $TAG from $REPO." >&2
-  echo "Confirm the release exists and that gh is authenticated." >&2
-  exit 1
+if [ -n "$FROM_DIR" ]; then
+  if [ ! -d "$FROM_DIR" ]; then
+    echo "No such directory: $FROM_DIR" >&2
+    exit 1
+  fi
+  cp "$FROM_DIR"/* "$WORKDIR"/ 2>/dev/null || true
+  report pass "assets read from $FROM_DIR (not yet published)"
+else
+  if ! gh release download "$TAG" --repo "$REPO" --dir "$WORKDIR" >/dev/null 2>&1; then
+    echo "Could not download release assets for $TAG from $REPO." >&2
+    echo "Confirm the release exists and that gh is authenticated." >&2
+    echo "To verify before publishing, pass --from-dir with the workflow artifact." >&2
+    exit 1
+  fi
+  report pass "release assets downloaded"
 fi
-report pass "release assets downloaded"
 
 EVIDENCE="$WORKDIR/release-evidence.txt"
 if [ -f "$EVIDENCE" ]; then
