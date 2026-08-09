@@ -43,10 +43,10 @@ inside infrastructure the operator owns.
 
 ### Native streaming integrations
 
-- Implement native Anthropic streaming so incremental tokens are forwarded as they arrive, replacing
-  the current upstream-buffered emulation.
-- Retire the `x-egrysa-downgraded: stream-emulated` disclosure header for providers once native
-  streaming is verified, and keep emitting it for any provider still emulated.
+- Native Anthropic streaming is implemented: the provider event stream is rewritten into OpenAI
+  chunks as it arrives, and the `x-egrysa-downgraded: stream-emulated` disclosure is retired because
+  no shipped provider is emulated. The header remains available for any future provider that is.
+- Extend native streaming to any provider added later without falling back to buffering.
 - Preserve bounded holdback recomposition under native chunking so a surrogate split across chunk
   boundaries is never emitted un-recomposed.
 - Extend the [provider capability table](src/provider_capabilities.ts) and conformance reports to

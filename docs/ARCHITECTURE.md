@@ -44,17 +44,18 @@ flowchart LR
     C -->|"supported"| A["Provider adapter"]
     F --> A
     A -->|"native JSON / SSE"| O["OpenAI-compatible response surface"]
-    A -->|"Anthropic buffered response"| E["OpenAI SSE emulation"]
-    E --> O
+    A -->|"Anthropic event stream"| T["Rewrite to OpenAI chunks in flight"]
+    T --> O
     F --> H["x-egrysa-downgraded"]
-    E --> H
 ```
 
 The default profiles live in `src/provider_capabilities.ts`; configuration can only narrow them.
 Droppable tuning fields are removed before adapter serialization and named in a response header.
 Tools, tool choice, streaming, stream options, temperature, and output bounds fail with 422 when the
-selected profile cannot preserve their semantics. Anthropic streaming is intentionally buffered,
-then emitted as stable OpenAI chunk frames and disclosed as `stream-emulated`.
+selected profile cannot preserve their semantics. Anthropic streaming is native: the provider event
+stream is rewritten into OpenAI chunk frames as it arrives, so tokens reach the caller
+incrementally. No shipped provider is emulated, so the `stream-emulated` disclosure is no longer
+emitted.
 
 ## Control matrix
 
@@ -78,9 +79,11 @@ then emitted as stable OpenAI chunk frames and disclosed as `stream-emulated`.
   or response content.
 - Denials retain version-2/version-3 policy receipts. Provider attempts use version-4 receipts:
   non-streaming success records `egress:completed`, invocation failure records `egress:failed`, and
-  native streaming records `egress:started` after upstream response headers arrive. Buffered stream
-  emulation records `egress:completed` because upstream inference finishes before client egress.
-  Native stream completion attestation is not claimed.
+  streaming records `egress:started` after upstream response headers arrive. A receipt is signed and
+  chained when the response begins, so a stream cannot later be amended to `completed`; stream
+  completion attestation is not claimed. This applies to every provider now that Anthropic streams
+  natively, where previously buffered emulation could record `egress:completed` because upstream
+  inference had already finished.
 - When semantic detection is enabled, receipts add only detector IDs/versions and a degradation
   boolean. No receipt records finding text or request/response content.
 - Provider credentials are read from named environment variables and never accepted in request
@@ -88,11 +91,13 @@ then emitted as stable OpenAI chunk frames and disclosed as `stream-emulated`.
 - Remote providers require HTTPS; plaintext HTTP is limited to loopback providers explicitly marked
   local.
 - OpenAI-compatible upstream payloads use an allowlist of fields and force `store:false`.
-- Native and emulated SSE content and tool-call argument fragments use bounded local recomposition.
-  Anthropic emulation is not incremental; multimodal content still fails closed.
-- Recomposition treats token-shaped, case-insensitive `EGRYSA_...` fragments as suspected damage
-  even when a provider removes all leading underscores. This intentionally favors failing closed;
-  ordinary prose such as “Egrysa is a gateway” lacks the separator/body shape and is not residue.
+- SSE content and tool-call argument fragments use bounded local recomposition on every provider.
+  Native chunking makes a surrogate split across a chunk boundary the common case rather than the
+  exception, which is what the holdback exists to rejoin. Multimodal content still fails closed.
+- Recomposition treats a surviving surrogate skeleton, meaning the sentinel followed by a finding
+  kind and a sequence number, or a sentinel followed by a token body and the closing delimiter, as
+  suspected damage. A mutation has to destroy both shapes to escape. Ordinary prose naming the
+  product, including `/opt/egrysa-gateway`, matches neither and is not residue.
 - Function definitions, message content, tool-call arguments, tool results, and JSON-schema string
   values are inspected. Sensitive structural schema keys cannot be transformed and are denied.
 - Semantic detector inputs use only a configured loopback provider marked `local:true`; redirects

@@ -52,7 +52,7 @@ export function renderProviderSupportMatrix(
       "presence_penalty",
       "parallel_tool_calls",
     ].filter((key) => !capabilities[key as keyof typeof capabilities]);
-    const stream = capabilities.stream ? (kind === "anthropic" ? "emulated" : "native") : "no";
+    const stream = capabilities.stream ? "native" : "no";
     const report = reports[kind] ? `[report](${reports[kind]})` : "**report wanted**";
     return [
       kind,

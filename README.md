@@ -34,7 +34,7 @@ training settings are policy inputs that must be validated through contract and 
 ## Demonstrated in this repository
 
 - OpenAI-compatible `POST /v1/chat/completions` ingress and `GET /v1/models` discovery.
-- Native OpenAI-compatible SSE plus disclosed Anthropic SSE emulation, both using bounded holdback
+- Native SSE for OpenAI-compatible and Anthropic providers, both using bounded holdback
   recomposition ([adapter code](src/providers.ts), [stream tests](tests/providers_test.ts)).
 - Function-tool definitions, assistant tool calls, and tool results as inspected text surfaces;
   Egrysa does not execute tools.
@@ -72,15 +72,12 @@ provider/model/version, not a universal compatibility claim. See
 | ----------------- | ------------- | --------- | ----- | --------------------------------------------------------------------- | ------------------ |
 | openai            | yes           | native    | yes   | none                                                                  | **report wanted**  |
 | openai-compatible | yes           | native    | yes   | none                                                                  | **report wanted**  |
-| anthropic         | yes           | emulated  | yes   | seed, top_p, frequency_penalty, presence_penalty, parallel_tool_calls | **report wanted**  |
+| anthropic         | yes           | native    | yes   | seed, top_p, frequency_penalty, presence_penalty, parallel_tool_calls | **report wanted**  |
 
 <!-- provider-matrix:end -->
 
 ## Deliberate exclusions
 
-- Anthropic streaming is buffered upstream and emitted as OpenAI SSE only after the full response is
-  available. The `x-egrysa-downgraded: stream-emulated` header makes the lack of incremental tokens
-  explicit; native Anthropic streaming is not implemented.
 - Function tools are passed through but never executed. Sensitive structural schema keys fail
   closed.
 - No files, audio, or images: each creates a separate egress and injection boundary.

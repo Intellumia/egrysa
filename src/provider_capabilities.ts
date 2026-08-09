@@ -95,6 +95,5 @@ export function prepareProviderRequest(
     delete prepared.tool_choice;
     delete prepared.parallel_tool_calls;
   }
-  if (provider.kind === "anthropic" && request.stream) downgraded.push("stream-emulated");
   return { request: prepared, downgraded };
 }

@@ -297,7 +297,7 @@ Deno.test("Anthropic tuning downgrades are dropped and disclosed", async () => {
   }
 });
 
-Deno.test("Anthropic stream emulation is disclosed on the gateway response", async () => {
+Deno.test("Anthropic streams natively with no downgrade disclosed", async () => {
   await configureTestEnvironment();
   Deno.env.set("TEST_ANTHROPIC_STREAM_KEY", "test-key");
   let resolveAddress!: (port: number) => void;
@@ -306,14 +306,29 @@ Deno.test("Anthropic stream emulation is disclosed on the gateway response", asy
     hostname: "127.0.0.1",
     port: 0,
     onListen: ({ port }) => resolveAddress(port),
-  }, () =>
-    Response.json({
-      id: "anthropic-stream-test",
-      model: "approved-model",
-      content: [{ type: "text", text: "completed" }],
-      stop_reason: "end_turn",
-      usage: { input_tokens: 4, output_tokens: 1 },
-    }));
+  }, () => {
+    const events = [
+      {
+        type: "message_start",
+        message: {
+          id: "anthropic-stream-test",
+          model: "approved-model",
+          role: "assistant",
+          usage: { input_tokens: 4 },
+        },
+      },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "comp" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "leted" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 1 } },
+      { type: "message_stop" },
+    ];
+    return new Response(
+      events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  });
   try {
     const config = testConfig();
     config.providers[0] = {
@@ -342,19 +357,27 @@ Deno.test("Anthropic stream emulation is disclosed on the gateway response", asy
       }),
     );
     const body = await response.text();
-    if (
-      response.status !== 200 ||
-      response.headers.get("x-egrysa-downgraded") !== "stream-emulated" ||
-      !body.includes('"prompt_tokens":4') || !body.endsWith("data: [DONE]\n\n")
-    ) throw new Error("Anthropic stream emulation was not disclosed or valid SSE");
+    if (response.status !== 200) throw new Error(`expected 200, got ${response.status}`);
+    // The header existed only to disclose that tokens were not incremental.
+    // Native streaming retires it, and its presence would now be a false claim.
+    if (response.headers.get("x-egrysa-downgraded")?.includes("stream-emulated")) {
+      throw new Error("a retired downgrade is still disclosed");
+    }
+    if (!body.includes('"prompt_tokens":4') || !body.endsWith("data: [DONE]\n\n")) {
+      throw new Error("native Anthropic stream was not valid OpenAI SSE with usage");
+    }
     const receiptId = response.headers.get("x-egrysa-receipt");
     const receipt = await (await gateway.handle(
       new Request(`http://gateway/v1/receipts/${receiptId}`, {
         headers: { authorization: "Bearer a-test-client-key-that-is-long-enough" },
       }),
     )).json();
-    if (receipt.egress !== "completed") {
-      throw new Error("buffered Anthropic emulation was not attested as completed upstream egress");
+    // A native stream is attested as started, not completed. The receipt is
+    // signed and hash-chained when the response begins, and at that moment the
+    // upstream exchange genuinely has not finished. Emulation could claim
+    // "completed" only because it had already buffered the whole response.
+    if (receipt.egress !== "started") {
+      throw new Error(`native Anthropic stream attested egress as ${receipt.egress}`);
     }
   } finally {
     await server.shutdown();

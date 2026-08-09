@@ -45,6 +45,24 @@ export async function invokeProvider(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     if (provider.kind === "anthropic") {
+      if (effectiveRequest.stream) {
+        const upstream = await invokeAnthropicStream(
+          provider,
+          effectiveRequest,
+          controller.signal,
+        );
+        return {
+          type: "stream",
+          response: translateAnthropicStream(
+            upstream.body!,
+            effectiveRequest.model,
+            effectiveRequest.stream_options?.include_usage,
+          ),
+          complete: () => clearTimeout(timeout),
+          downgraded: prepared.downgraded,
+          emulated: false,
+        };
+      }
       const data = await invokeAnthropic(
         provider,
         effectiveRequest,
@@ -52,15 +70,6 @@ export async function invokeProvider(
         maxResponseBytes,
       );
       clearTimeout(timeout);
-      if (effectiveRequest.stream) {
-        return {
-          type: "stream",
-          response: emulateOpenAiStream(data, effectiveRequest.stream_options?.include_usage),
-          complete: () => undefined,
-          downgraded: prepared.downgraded,
-          emulated: true,
-        };
-      }
       return { type: "json", data, downgraded: prepared.downgraded };
     }
     const invocation = await invokeOpenAiCompatible(
@@ -117,44 +126,70 @@ async function invokeOpenAiCompatible(
   return { type: "json", data: await parseProviderResponse(response, maxResponseBytes) };
 }
 
+// One request shape for both the buffered and the streaming path, so the two
+// cannot drift in what they send upstream.
+function anthropicRequestBody(request: ChatRequest, stream: boolean): Record<string, unknown> {
+  const system = request.messages.filter((message) => message.role === "system").map((message) =>
+    message.content
+  ).join("\n\n");
+  return {
+    model: request.model,
+    messages: toAnthropicMessages(request.messages),
+    ...(system ? { system } : {}),
+    max_tokens: request.max_tokens ?? 1024,
+    ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+    ...(request.tools?.length && request.tool_choice !== "none"
+      ? {
+        tools: request.tools.map((tool) => ({
+          name: tool.function.name,
+          ...(tool.function.description === undefined
+            ? {}
+            : { description: tool.function.description }),
+          input_schema: tool.function.parameters ?? { type: "object", properties: {} },
+        })),
+      }
+      : {}),
+    ...anthropicToolChoice(request.tool_choice),
+    ...(stream ? { stream: true } : {}),
+  };
+}
+
+function anthropicHeaders(provider: ProviderConfig): Headers {
+  const key = provider.apiKeyEnv ? Deno.env.get(provider.apiKeyEnv) : undefined;
+  if (!key) throw new ProviderError(`credential unavailable for provider ${provider.id}`, 503);
+  return new Headers({
+    "content-type": "application/json",
+    "x-api-key": key,
+    "anthropic-version": "2023-06-01",
+  });
+}
+
+async function invokeAnthropicStream(
+  provider: ProviderConfig,
+  request: ChatRequest,
+  signal: AbortSignal,
+): Promise<Response> {
+  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/v1/messages`, {
+    method: "POST",
+    headers: anthropicHeaders(provider),
+    body: JSON.stringify(anthropicRequestBody(request, true)),
+    signal,
+    redirect: "error",
+  });
+  if (!response.ok || !response.body) await throwProviderResponse(response);
+  return response;
+}
+
 async function invokeAnthropic(
   provider: ProviderConfig,
   request: ChatRequest,
   signal: AbortSignal,
   maxResponseBytes: number,
 ): Promise<Record<string, unknown>> {
-  const key = provider.apiKeyEnv ? Deno.env.get(provider.apiKeyEnv) : undefined;
-  if (!key) throw new ProviderError(`credential unavailable for provider ${provider.id}`, 503);
-  const system = request.messages.filter((message) => message.role === "system").map((message) =>
-    message.content
-  ).join("\n\n");
-  const messages = toAnthropicMessages(request.messages);
   const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/v1/messages`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: request.model,
-      messages,
-      ...(system ? { system } : {}),
-      max_tokens: request.max_tokens ?? 1024,
-      ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-      ...(request.tools?.length && request.tool_choice !== "none"
-        ? {
-          tools: request.tools.map((tool) => ({
-            name: tool.function.name,
-            ...(tool.function.description === undefined
-              ? {}
-              : { description: tool.function.description }),
-            input_schema: tool.function.parameters ?? { type: "object", properties: {} },
-          })),
-        }
-        : {}),
-      ...anthropicToolChoice(request.tool_choice),
-    }),
+    headers: anthropicHeaders(provider),
+    body: JSON.stringify(anthropicRequestBody(request, false)),
     signal,
     redirect: "error",
   });
@@ -191,62 +226,181 @@ async function invokeAnthropic(
   };
 }
 
-export function emulateOpenAiStream(
-  completion: Record<string, unknown>,
+// Anthropic emits its own event stream. This rewrites it into OpenAI chunks as
+// they arrive, so tokens reach the caller incrementally instead of after the
+// full response. Downstream recomposition is unchanged: it already reassembles
+// a surrogate split across chunk boundaries, which is the case native streaming
+// makes common rather than rare.
+const MAX_ANTHROPIC_EVENT_BYTES = 1024 * 1024;
+
+export function translateAnthropicStream(
+  upstream: ReadableStream<Uint8Array>,
+  fallbackModel: string,
   includeUsage = false,
 ): Response {
-  const choice = Array.isArray(completion.choices) && completion.choices[0] &&
-      typeof completion.choices[0] === "object"
-    ? completion.choices[0] as Record<string, unknown>
-    : {};
-  const message = choice.message && typeof choice.message === "object" &&
-      !Array.isArray(choice.message)
-    ? choice.message as Record<string, unknown>
-    : {};
-  const id = typeof completion.id === "string" ? completion.id : `egrysa-${crypto.randomUUID()}`;
-  const model = typeof completion.model === "string" ? completion.model : "unknown";
-  const created = typeof completion.created === "number"
-    ? completion.created
-    : Math.floor(Date.now() / 1000);
-  const base = { id, object: "chat.completion.chunk", created, model };
-  const delta: Record<string, unknown> = { role: "assistant" };
-  if (typeof message.content === "string") delta.content = message.content;
-  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
-    delta.tool_calls = message.tool_calls.map((call, index) => {
-      const typed = call && typeof call === "object" && !Array.isArray(call)
-        ? call as Record<string, unknown>
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const reader = upstream.getReader();
+
+  let pending = "";
+  let identifier = `egrysa-${crypto.randomUUID()}`;
+  let model = fallbackModel;
+  const created = Math.floor(Date.now() / 1000);
+  let finishReason = "stop";
+  let usage: Record<string, unknown> | null = null;
+  let roleAnnounced = false;
+  let upstreamDone = false;
+  const toolSlots = new Map<number, number>();
+
+  const base = () => ({ id: identifier, object: "chat.completion.chunk", created, model });
+  const chunk = (delta: Record<string, unknown>, reason: string | null) =>
+    `data: ${
+      JSON.stringify({ ...base(), choices: [{ index: 0, delta, finish_reason: reason }] })
+    }\n\n`;
+
+  // Anthropic can announce the role in message_start or go straight to content;
+  // OpenAI clients expect the role on the first delta either way.
+  const announceRole = (out: string[]) => {
+    if (roleAnnounced) return;
+    roleAnnounced = true;
+    out.push(chunk({ role: "assistant" }, null));
+  };
+
+  const handle = (event: Record<string, unknown>, out: string[]): void => {
+    const type = typeof event.type === "string" ? event.type : "";
+    if (type === "error") {
+      const detail = event.error && typeof event.error === "object"
+        ? String((event.error as Record<string, unknown>).message ?? "provider stream error")
+        : "provider stream error";
+      throw new ProviderError(detail, 502);
+    }
+    if (type === "message_start") {
+      const message = event.message && typeof event.message === "object"
+        ? event.message as Record<string, unknown>
         : {};
-      const fn = typed.function && typeof typed.function === "object" &&
-          !Array.isArray(typed.function)
-        ? typed.function as Record<string, unknown>
+      if (typeof message.id === "string") identifier = message.id;
+      if (typeof message.model === "string") model = message.model;
+      if (message.usage && typeof message.usage === "object") {
+        usage = message.usage as Record<string, unknown>;
+      }
+      announceRole(out);
+      return;
+    }
+    if (type === "content_block_start") {
+      const block = event.content_block && typeof event.content_block === "object"
+        ? event.content_block as Record<string, unknown>
         : {};
-      return {
-        index,
-        id: typeof typed.id === "string" ? typed.id : `call_${index}`,
-        type: "function",
-        function: {
-          name: typeof fn.name === "string" ? fn.name : "unknown",
-          arguments: typeof fn.arguments === "string" ? fn.arguments : "{}",
-        },
-      };
-    });
-  }
-  const frames: Record<string, unknown>[] = [
-    { ...base, choices: [{ index: 0, delta, finish_reason: null }] },
-    {
-      ...base,
-      choices: [{
-        index: 0,
-        delta: {},
-        finish_reason: typeof choice.finish_reason === "string" ? choice.finish_reason : "stop",
-      }],
+      if (block.type !== "tool_use") return;
+      const index = typeof event.index === "number" ? event.index : 0;
+      const slot = toolSlots.size;
+      toolSlots.set(index, slot);
+      announceRole(out);
+      out.push(chunk({
+        tool_calls: [{
+          index: slot,
+          id: typeof block.id === "string" ? block.id : `call_${slot}`,
+          type: "function",
+          function: {
+            name: typeof block.name === "string" ? block.name : "unknown",
+            arguments: "",
+          },
+        }],
+      }, null));
+      return;
+    }
+    if (type === "content_block_delta") {
+      const delta = event.delta && typeof event.delta === "object"
+        ? event.delta as Record<string, unknown>
+        : {};
+      announceRole(out);
+      if (delta.type === "text_delta" && typeof delta.text === "string") {
+        out.push(chunk({ content: delta.text }, null));
+        return;
+      }
+      if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
+        const index = typeof event.index === "number" ? event.index : 0;
+        const slot = toolSlots.get(index) ?? 0;
+        out.push(chunk({
+          tool_calls: [{ index: slot, function: { arguments: delta.partial_json } }],
+        }, null));
+      }
+      return;
+    }
+    if (type === "message_delta") {
+      const delta = event.delta && typeof event.delta === "object"
+        ? event.delta as Record<string, unknown>
+        : {};
+      if (typeof delta.stop_reason === "string") {
+        finishReason = mapAnthropicFinishReason(delta.stop_reason);
+      }
+      if (event.usage && typeof event.usage === "object") {
+        usage = { ...(usage ?? {}), ...(event.usage as Record<string, unknown>) };
+      }
+    }
+    // message_stop, content_block_stop, and ping need no OpenAI equivalent.
+  };
+
+  const drain = (out: string[]): void => {
+    while (true) {
+      const boundary = pending.indexOf("\n\n");
+      if (boundary === -1) {
+        if (pending.length > MAX_ANTHROPIC_EVENT_BYTES) {
+          throw new ProviderError("provider stream event exceeded the size limit", 502);
+        }
+        return;
+      }
+      const frame = pending.slice(0, boundary);
+      pending = pending.slice(boundary + 2);
+      const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim()).join("");
+      if (!data) continue;
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(data) as Record<string, unknown>;
+      } catch {
+        throw new ProviderError("provider stream sent malformed JSON", 502);
+      }
+      handle(parsed, out);
+    }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const out: string[] = [];
+      try {
+        while (out.length === 0 && !upstreamDone) {
+          const { value, done } = await reader.read();
+          pending += decoder.decode(value, { stream: !done });
+          drain(out);
+          if (done) {
+            upstreamDone = true;
+            announceRole(out);
+            out.push(chunk({}, finishReason));
+            if (includeUsage) {
+              out.push(
+                `data: ${
+                  JSON.stringify({ ...base(), choices: [], usage: openAiUsage(usage ?? {}) })
+                }\n\n`,
+              );
+            }
+            out.push("data: [DONE]\n\n");
+          }
+        }
+      } catch (error) {
+        controller.error(error);
+        return;
+      }
+      for (const piece of out) controller.enqueue(encoder.encode(piece));
+      if (upstreamDone) controller.close();
     },
-  ];
-  if (includeUsage) frames.push({ ...base, choices: [], usage: openAiUsage(completion.usage) });
-  const body = `${
-    frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")
-  }data: [DONE]\n\n`;
-  return new Response(body, { headers: { "content-type": "text/event-stream; charset=utf-8" } });
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+
+  return new Response(stream, {
+    headers: { "content-type": "text/event-stream; charset=utf-8" },
+  });
 }
 
 function openAiUsage(value: unknown): Record<string, number> {
