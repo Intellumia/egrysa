@@ -48,29 +48,46 @@ manifest is an intentional fail-closed placeholder.
 Download the release assets, then verify their integrity and the published registry evidence. Set
 `TAG` to the exact release and `IMAGE` to the digest reference recorded in `release-evidence.txt`:
 
+The certificate identity records the repository path as it was at signing time, and it cannot be
+re-issued for an existing release. This repository moved from `sundeep229211/egrysa` to
+`Intellumia/egrysa`, so `SIGNER_REPO` below selects the identity that matches the tag being
+verified. Using the wrong one fails closed with a `no matching CertificateIdentity found` error,
+which is a naming mismatch rather than evidence of tampering.
+
 ```sh
 gh release download "$TAG"
+
+case "$TAG" in
+  v0.1.0-alpha.1 | v0.1.0-alpha.2 | v0.1.0-alpha.3) SIGNER_REPO=sundeep229211/egrysa ;;
+  *) SIGNER_REPO=Intellumia/egrysa ;;
+esac
+IDENTITY="https://github.com/$SIGNER_REPO/.github/workflows/release.yml@refs/tags/$TAG"
+
 cosign verify-blob \
   --bundle SHA256SUMS.sigstore.json \
-  --certificate-identity "https://github.com/sundeep229211/egrysa/.github/workflows/release.yml@refs/tags/$TAG" \
+  --certificate-identity "$IDENTITY" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 sha256sum -c SHA256SUMS
 cosign verify-blob \
   --bundle sbom.cdx.sigstore.json \
-  --certificate-identity "https://github.com/sundeep229211/egrysa/.github/workflows/release.yml@refs/tags/$TAG" \
+  --certificate-identity "$IDENTITY" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   sbom.cdx.json
 cosign verify \
-  --certificate-identity "https://github.com/sundeep229211/egrysa/.github/workflows/release.yml@refs/tags/$TAG" \
+  --certificate-identity "$IDENTITY" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$IMAGE"
 gh attestation verify "oci://$IMAGE" \
-  --repo sundeep229211/egrysa \
+  --repo "$SIGNER_REPO" \
   --bundle provenance.bundle.jsonl \
-  --signer-workflow sundeep229211/egrysa/.github/workflows/release.yml \
+  --signer-workflow "$SIGNER_REPO/.github/workflows/release.yml" \
   --source-ref "refs/tags/$TAG"
 ```
+
+Releases signed after the move derive their identity from `$GITHUB_REPOSITORY` in
+`.github/workflows/release.yml`, so they require no manual selection and fall through to the
+`Intellumia/egrysa` default above.
 
 The signed checksum bundle makes the retained files independently verifiable even if a registry or
 API later stops indexing an attached artifact. The registry checks additionally prove that the
@@ -97,19 +114,19 @@ publish a release to work around the failure.
 - Steps 1 through 5 are complete: the repository is public, `main` is protected, signed commits are
   required, and CodeQL, secret scanning, push protection, Dependabot security updates, and private
   vulnerability reporting are enabled.
-- Public CI run [`29415491535`](https://github.com/sundeep229211/egrysa/actions/runs/29415491535)
+- Public CI run [`29415491535`](https://github.com/Intellumia/egrysa/actions/runs/29415491535)
   passed source verification, the independent security baseline, and CodeQL on protected `main`.
 - The private reporting route was tested by non-maintainer `ksundeep9211` through closed,
   unpublished advisory `GHSA-q6pq-4327-qpvw` on 2026-07-17.
 - Signed tag `v0.1.0-alpha.1` points to commit `e2b25a4`. Its tag workflow
-  [`29553773326`](https://github.com/sundeep229211/egrysa/actions/runs/29553773326) passed and
+  [`29553773326`](https://github.com/Intellumia/egrysa/actions/runs/29553773326) passed and
   published an image, but its registry/API attestations were no longer independently discoverable
   during the pre-announcement audit. The tag remains immutable and no GitHub release was created.
 - Pull request #7 merged the announce candidate through protected `main` at verified commit
   `24f13cedb202c75729c09adec0eb45681489adf3`; post-merge CI
-  [`29648549050`](https://github.com/sundeep229211/egrysa/actions/runs/29648549050) passed.
+  [`29648549050`](https://github.com/Intellumia/egrysa/actions/runs/29648549050) passed.
 - Signed tag `v0.1.0-alpha.2` points to `dca67a5`. Its workflow
-  [`29649397754`](https://github.com/sundeep229211/egrysa/actions/runs/29649397754) proved the image
+  [`29649397754`](https://github.com/Intellumia/egrysa/actions/runs/29649397754) proved the image
   signature and GitHub provenance but failed closed because the provenance referrer displaced the
   retrievable CycloneDX predicate. No release was created and the tag remains immutable.
 - `v0.1.0-alpha.3` is the next release target. Its CycloneDX document is a separately keyless-signed

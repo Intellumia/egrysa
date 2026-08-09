@@ -150,7 +150,7 @@ coverage, see [detection coverage](docs/DETECTION_COVERAGE.md).
 
 ## Local evaluation
 
-Requirements: Deno 2.9.x (CI pins 2.9.2) and Ollama for the default local path. The repository has
+Requirements: Deno 2.9.x (CI pins 2.9.4) and Ollama for the default local path. The repository has
 no external code dependencies.
 
 1. Start Ollama:
