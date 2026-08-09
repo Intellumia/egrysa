@@ -45,6 +45,21 @@ Verify the tag signature, GitHub attestation, cosign identity, image digest, and
 the digest into a deployment manifest. Never deploy a mutable tag. The all-zero digest in the sample
 manifest is an intentional fail-closed placeholder.
 
+The commands below are the authoritative procedure. To run them without transcribing:
+
+```sh
+tools/verify-release.sh v0.1.0-alpha.4
+```
+
+It executes exactly these commands in order, selects the signer identity for the tag, reads the
+image digest from `release-evidence.txt`, and exits non-zero if any artefact fails. It is operator
+tooling and deliberately not a `deno task`: verification needs `cosign` and `gh`, and the gateway's
+task definitions grant neither subprocess nor FFI permission.
+
+An evaluator who would rather not trust a script from the same repository should run the commands
+below directly. That is the point of publishing them, and the script exists to remove transcription
+errors, not to replace independent verification.
+
 Download the release assets, then verify their integrity and the published registry evidence. Set
 `TAG` to the exact release and `IMAGE` to the digest reference recorded in `release-evidence.txt`:
 
@@ -88,6 +103,25 @@ gh attestation verify "oci://$IMAGE" \
 Releases signed after the move derive their identity from `$GITHUB_REPOSITORY` in
 `.github/workflows/release.yml`, so they require no manual selection and fall through to the
 `Intellumia/egrysa` default above.
+
+### Verify before announcing
+
+The release workflow attests provenance only on a tag push, so no pull request exercises signing or
+attestation. A dry run through `workflow_dispatch` builds, scans, and generates an SBOM, but it does
+**not** execute the attestation step and therefore cannot validate it.
+
+The consequence is that a change to the signing or attestation path is first exercised by a real
+tag. Treat the next tag as the verification release: tag it, announce nothing, run
+`tools/verify-release.sh` against it, and only then decide whether to publish or announce. If it
+fails, advance the alpha suffix and repeat. An unannounced release that fails verification costs
+nothing; an announced one that fails is indistinguishable from tampering to anyone following these
+instructions.
+
+Recorded results:
+
+| Tag              | Verified   | Result                                                   |
+| ---------------- | ---------- | -------------------------------------------------------- |
+| `v0.1.0-alpha.3` | 2026-08-09 | 7 of 7 checks passed, using the pre-move signer identity |
 
 The signed checksum bundle makes the retained files independently verifiable even if a registry or
 API later stops indexing an attached artifact. The registry checks additionally prove that the
