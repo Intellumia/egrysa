@@ -14,6 +14,17 @@ This is an engineering crosswalk, not a certification statement or legal opinion
 | HIPAA Security Rule, when applicable                               | deny selected identifiers, local routing, access boundary, content-minimized audit                                   | BAA, HIPAA-eligible provider features, full identifier coverage, risk analysis, policies  |
 | PCI DSS, when applicable                                           | Luhn-valid payment cards denied                                                                                      | do not use this gateway to reduce cardholder-data scope without a QSA decision            |
 
+## Measurement and human oversight evidence
+
+Two framework areas above ask for measurement and for human oversight rather than for a control to
+exist. Both now have concrete artefacts, and both are honest about their limits.
+
+| Ask                                                                                          | Artefact                                                                                                                                                                               | Limit                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| NIST AI RMF **Measure**: characterise the system empirically                                 | [Detection coverage](DETECTION_COVERAGE.md), per-class precision and recall against an adversarial corpus, reproducible with `deno task eval:adversarial`                              | The corpus is maintainer-authored, so it is not the independent assessment the framework contemplates                                                                          |
+| NIST AI RMF **Manage** and NIST Privacy **Govern-P**: human oversight of automated decisions | `policy.sensitivity: review` holds an ambiguous request and requires an explicit acknowledgement before it proceeds; the hold and the acknowledged retry each produce a signed receipt | The acknowledgement identifies the calling workload, not a named individual. Attributing a decision to a person requires the customer's identity layer in front of the gateway |
+| SOC 2 / ISO 27001 change control over the enforcement policy                                 | Startup validation rejects an incomplete or conflicting taxonomy; the detector ruleset in force is recorded in each receipt as a detector version                                      | The policy file itself is not signed, and receipts record the ruleset rather than a policy version. Configuration change control remains the customer's                        |
+
 ## Current authoritative anchors
 
 - NIST AI 600-1, _Artificial Intelligence Risk Management Framework: Generative Artificial

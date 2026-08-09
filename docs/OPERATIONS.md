@@ -80,6 +80,42 @@ so `stream-emulated` is no longer emitted; the disclosure remains reserved for a
 later that cannot stream natively. If usage was requested through `stream_options.include_usage`, a
 usage frame follows the final chunk.
 
+## Detection sensitivity
+
+`policy.sensitivity` decides what happens to a **low-precision** finding in a blocked data class. A
+high-precision finding always denies, in every mode, so this setting cannot weaken the fail-closed
+floor.
+
+| Value                | Low-precision finding in a blocked class | Choose when                                         |
+| -------------------- | ---------------------------------------- | --------------------------------------------------- |
+| `strict`             | denied                                   | A missed value costs more than a blocked request    |
+| `balanced` (default) | routed to the local provider             | General use; omitting the field behaves identically |
+| `review`             | held for a person to decide              | A pattern should not be the last word               |
+
+Under `review` the gateway answers `409` with a receipt identifier before anything leaves the
+boundary. The response names the receipt and never the matched value. To proceed, replay the request
+with that identifier:
+
+```sh
+curl ... -H "x-egrysa-acknowledge: <receipt-id>"
+```
+
+An acknowledgement is accepted only if this gateway issued it, and only once, so it cannot be forged
+by sending an arbitrary header or replayed across requests. The hold and the acknowledged retry each
+produce their own receipt; that pair is the evidence a person made the call.
+
+Operational consequences worth planning for:
+
+- Holds are held in memory and bounded. A restart clears them and the caller receives a fresh hold
+  on the next attempt, so `review` is not a durable approval queue.
+- The acknowledgement identifies the calling workload, not a named individual. Attribute it to a
+  person through the identity layer in front of the gateway.
+- `strict` blocks legitimate work. The measured cost on the published corpus is four false positives
+  in nineteen negative controls, taking `ssn` precision from 100% to 42.9%. Read
+  [detection coverage](DETECTION_COVERAGE.md) before selecting it.
+- Changing sensitivity changes which detector ruleset runs, and the ruleset is recorded in every
+  receipt as a detector version, so evidence stays interpretable across a configuration change.
+
 ## Provider conformance workflow
 
 Run `deno task conformance -- --provider <id>` after configuring and starting a provider. Deno asks
