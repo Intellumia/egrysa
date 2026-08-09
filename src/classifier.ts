@@ -7,16 +7,42 @@ import {
 import { createSemanticDetector, REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
 import type { AppConfig, Finding, FindingKind } from "./types.ts";
 
+// Vendor-namespaced credential prefixes. Each alternative is anchored on a
+// literal issued by the provider, so broadening coverage here does not widen
+// the match surface for ordinary high-entropy strings such as commit hashes,
+// image digests, or build identifiers.
+const CREDENTIAL_PREFIXES = [
+  "sk-(?:proj-)?[A-Za-z0-9_-]{20,}", // OpenAI and Anthropic
+  "AKIA[0-9A-Z]{16}", // AWS access key identifier
+  "gh[opusr]_[A-Za-z0-9]{20,}", // GitHub classic token
+  "github_pat_[A-Za-z0-9_]{20,}", // GitHub fine-grained token
+  "glpat-[A-Za-z0-9_-]{16,}", // GitLab personal access token
+  "AIza[0-9A-Za-z_-]{35}", // Google API key
+  "xox[baprs]-[A-Za-z0-9-]{10,}", // Slack token
+  "[sr]k_(?:live|test)_[A-Za-z0-9_-]{16,}", // Stripe secret and restricted keys
+  "npm_[A-Za-z0-9]{30,}", // npm access token
+  "SG\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}", // SendGrid API key
+  "AccountKey=[A-Za-z0-9+/]{60,}={0,2}", // Azure storage connection string
+  "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}", // JSON Web Token
+].join("|");
+
 const patterns: Array<{ kind: FindingKind; regex: RegExp; validate?: (value: string) => boolean }> =
   [
     {
       kind: "private_key",
       regex:
-        /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
+        /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----/g,
     },
     {
       kind: "api_secret",
-      regex: /\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[opusr]_[A-Za-z0-9]{20,})\b/g,
+      regex: new RegExp(`\\b(?:${CREDENTIAL_PREFIXES})`, "g"),
+    },
+    {
+      // A password carried in a URL authority. Without this the credential
+      // matches the email pattern instead, which routes the request to
+      // transform rather than deny and understates the finding in the receipt.
+      kind: "api_secret",
+      regex: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s/@]{3,}@[^\s/?#]+/gi,
     },
     { kind: "email", regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi },
     {
@@ -24,6 +50,14 @@ const patterns: Array<{ kind: FindingKind; regex: RegExp; validate?: (value: str
       regex: /\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b/g,
     },
     { kind: "iban", regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g, validate: validateIban },
+    {
+      // Conventional printed grouping. Kept separate from the compact pattern
+      // so a greedy run into adjacent uppercase text cannot fail validation and
+      // discard an otherwise valid account number.
+      kind: "iban",
+      regex: /\b[A-Z]{2}\d{2}(?: [A-Z0-9]{4}){2,7}(?: [A-Z0-9]{1,4})?\b/g,
+      validate: validateIban,
+    },
     { kind: "credit_card", regex: /\b(?:\d[ -]*?){13,19}\b/g, validate: luhn },
     { kind: "ipv4", regex: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g, validate: validateIpv4 },
     {
