@@ -1,38 +1,40 @@
 # Evaluation record
 
-Date: 2026-07-18
+Date: 2026-09-20
 
-Measured implementation commit: `2fef037f9bc17a18a69eb3dfcd0a3b3bc9297e10`
+Measured implementation commit: `5002c7879a0f5bbc88cf0881a0ed4beeba72846b` (tag `v0.1.0-alpha.4`)
 
-Runtime: Deno 2.9.3 on Apple Silicon; CI remains pinned to Deno 2.9.2
+Runtime: Deno 2.9.4 on Apple Silicon, matching the CI pin
 
 Suite: `egrysa-synthetic-v2`
 
 ## Results
 
-| Gate                                          |                                          Result |
-| --------------------------------------------- | ----------------------------------------------: |
-| Unit/integration tests                        |                             76 passed, 0 failed |
-| Black-box compatibility acceptance            |                              2 passed, 0 failed |
-| Expected data-class decisions                 |                                           48/48 |
-| Exact expected finding sets                   |                                           48/48 |
-| Macro detector precision / recall             |                                     1.00 / 1.00 |
-| Negative-case false positives                 |                                               0 |
-| High-severity secret egress                   |                                               0 |
-| Mean classifier plus policy time              |                     0.22 ms in the measured run |
-| Raw prompt persistence by evaluation harness  |                                           false |
-| End-to-end surrogate/recomposition path       |              passed against local HTTP upstream |
-| SSE split-token recomposition                 |                        passed against local SSE |
-| Tool argument transformation/recomposition    |                       passed against local HTTP |
-| Receipt restart continuity / tamper rejection |                                          passed |
-| Standalone arm64 binary                       |                    prior: compiled successfully |
-| Hardened container runtime                    |       prior: passed with restricted host launch |
-| Local image high/critical vulnerability scan  |                      prior: 0 detected by Trivy |
-| Local CycloneDX SBOM                          |             prior: generated with 11 components |
-| Kubernetes PVC and pod-replacement continuity | prior: passed on Kubernetes 1.36.1 with kindnet |
-| Prior network-policy enforcement              |  passed on Kubernetes 1.36.1 with Calico 3.32.1 |
-| Ollama local generation through Egrysa        | prior: `local_only` decision and signed receipt |
-| OpenAI provider-adapter generation            |      prior: one authorized `gpt-5.2` smoke test |
+| Gate                                          |                                                  Result |
+| --------------------------------------------- | ------------------------------------------------------: |
+| Unit/integration tests                        |       89 passed, 0 failed, 1 ignored (opt-in live test) |
+| Black-box compatibility acceptance            |                                      2 passed, 0 failed |
+| Expected data-class decisions                 |                                                   48/48 |
+| Exact expected finding sets                   |                                                   48/48 |
+| Macro detector precision / recall             |                                             1.00 / 1.00 |
+| Negative-case false positives                 |                                                       0 |
+| Adversarial corpus, balanced sensitivity      |                   77/102 detected, 0/19 false positives |
+| Realistic scenario corpus                     | 64/67 detected, 0 undisclosed misses, 0 false positives |
+| High-severity secret egress                   |                                                       0 |
+| Mean classifier plus policy time              |                             0.12 ms in the measured run |
+| Raw prompt persistence by evaluation harness  |                                                   false |
+| End-to-end surrogate/recomposition path       |                      passed against local HTTP upstream |
+| SSE split-token recomposition                 |                                passed against local SSE |
+| Tool argument transformation/recomposition    |                               passed against local HTTP |
+| Receipt restart continuity / tamper rejection |                                                  passed |
+| Standalone arm64 binary                       |                          compiled successfully, 67.7 MB |
+| Hardened container runtime                    |               prior: passed with restricted host launch |
+| Local image high/critical vulnerability scan  |                              prior: 0 detected by Trivy |
+| Local CycloneDX SBOM                          |                     prior: generated with 11 components |
+| Kubernetes PVC and pod-replacement continuity |         prior: passed on Kubernetes 1.36.1 with kindnet |
+| Prior network-policy enforcement              |          passed on Kubernetes 1.36.1 with Calico 3.32.1 |
+| Ollama local generation through Egrysa        |         prior: `local_only` decision and signed receipt |
+| OpenAI provider-adapter generation            |              prior: one authorized `gpt-5.2` smoke test |
 
 ## Reference semantic detector evidence
 
@@ -53,7 +55,7 @@ starting a model:
 | Physical-address precision / recall      |    1 / 1 |
 | Semantic-confidential precision / recall |    1 / 1 |
 | Negative-case false-positive rate        |        0 |
-| p95 added latency                        | 0.065 ms |
+| p95 added latency                        | 0.046 ms |
 | Detector failures                        |        0 |
 
 A separate live run used the reference detector `egrysa.reference.local-semantic@0.2.0`, Ollama
@@ -78,10 +80,10 @@ unable to hard-deny a request by themselves.
 
 ## Runtime evidence
 
-The unit/integration suite and synthetic-v2 results were refreshed at commit
-`2fef037f9bc17a18a69eb3dfcd0a3b3bc9297e10`. The standalone compile, container, vulnerability scan,
-SBOM, Kubernetes persistence, Ollama, live-provider, and Calico network-policy observations below
-predate that commit and were not rerun for this measurement.
+The unit/integration suite, acceptance suite, synthetic-v2, adversarial, and scenario results, and
+the standalone compile were refreshed at commit `5002c7879a0f5bbc88cf0881a0ed4beeba72846b`. The
+container, vulnerability scan, SBOM, Kubernetes persistence, Ollama, live-provider, and Calico
+network-policy observations below predate that commit and were not rerun for this measurement.
 
 The black-box acceptance task passed model discovery, non-streaming and split-token streaming
 recomposition, function tools, mutated-surrogate failure, provider timeout, stream cancellation,
