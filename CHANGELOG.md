@@ -40,6 +40,9 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- An end-to-end gateway overhead benchmark, `deno task bench:e2e`, that starts an in-process echo
+  provider and gateway with a real fsynced receipt log and reports p50/p95/p99 latency, throughput,
+  and decision counts for plain, transformed, and streamed requests at configurable concurrency.
 
 ### Changed
 
