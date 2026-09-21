@@ -40,6 +40,13 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Opt-in prompt-injection detection. Adding `prompt_injection` to `nerDetector.kinds` makes the
+  reference sidecar score each request with a pinned classifier and report the highest-scoring
+  window as a low-precision finding. The kind is a new blocked class, so **configurations from an
+  earlier release must add `prompt_injection` to `blockKinds`**, and `policy.sensitivity` decides
+  whether a flagged request is routed locally (`balanced`), refused (`strict`), or held (`review`).
+  Response scanning ignores the kind. `deno task eval:injection` measures it: 8/8 attacks, 2/10
+  benign flagged, 0/67 scenario documents flagged.
 - Per-workload rate limiting: `policy.rateLimit` (globally or per workload) is a token bucket per
   workload key answering 429 with `Retry-After` before inspection, counted in
   `egrysa_rate_limited_total`. Per replica by design; the operations guide says to keep an ingress

@@ -26,6 +26,11 @@ export const FINDING_KINDS = [
   "crypto_wallet",
   "vin",
   "organization",
+  // A request that tries to redirect the model. Found by the local NER
+  // sidecar's classifier, low precision by construction, so the sensitivity
+  // switch decides: balanced routes it to local inference, strict denies,
+  // review holds it for a person. Request-side only.
+  "prompt_injection",
 ] as const;
 
 export type FindingKind = typeof FINDING_KINDS[number];
@@ -107,7 +112,12 @@ export interface SemanticDetectorConfig {
   kinds?: SemanticFindingKind[];
 }
 
-export const NER_FINDING_KINDS = ["person_name", "physical_address", "organization"] as const;
+export const NER_FINDING_KINDS = [
+  "person_name",
+  "physical_address",
+  "organization",
+  "prompt_injection",
+] as const;
 
 export type NerFindingKind = typeof NER_FINDING_KINDS[number];
 

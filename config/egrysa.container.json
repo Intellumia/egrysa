@@ -96,7 +96,8 @@
       "uk_nino",
       "nhs_number",
       "passport",
-      "bank_account"
+      "bank_account",
+      "prompt_injection"
     ],
     "localOnlyKinds": [
       "confidential_term",

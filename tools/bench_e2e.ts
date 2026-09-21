@@ -193,6 +193,7 @@ function benchConfig(providerPort: number, receiptLogPath: string): AppConfig {
         "nhs_number",
         "passport",
         "bank_account",
+        "prompt_injection",
       ],
       localOnlyKinds: ["confidential_term", "semantic_confidential"],
       transformKinds: [

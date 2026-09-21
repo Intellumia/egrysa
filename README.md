@@ -52,6 +52,8 @@ training settings are policy inputs that must be validated through contract and 
   endpoint for person names, physical addresses, and semantically confidential content. It is
   best-effort; measured evidence is in [EVALUATION.md](docs/EVALUATION.md).
 - Four decisions: `deny`, `local_only`, `transform`, and explicitly approved `allow_raw`.
+- Opt-in prompt-injection detection through the same sidecar, as a low-precision blocked class so
+  the sensitivity switch decides whether a flagged request is routed locally, refused, or held.
 - Per-workload rate limiting with `Retry-After`, and a read-only auditor role whose keys can read
   every workload's receipts and the metrics but cannot submit a request.
 - Per-workload policy: each inbound key's workload can override the data-class actions, sensitivity,

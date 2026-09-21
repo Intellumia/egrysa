@@ -38,6 +38,9 @@ export const UNSCANNED: ResponseEvidence = { findingCounts: {}, action: "unscann
 type KindAction = "pass" | "redact" | "deny";
 
 export function responseActionFor(kind: FindingKind, config: AppConfig): KindAction {
+  // Injection is a property of a request, not of a reply; a model quoting an
+  // attack back is not attacking. It is never redacted or denied here.
+  if (kind === "prompt_injection") return "pass";
   const policy = resolveResponsePolicy(config);
   if (config.policy.blockKinds.includes(kind)) return policy.blocked;
   if (config.policy.transformKinds.includes(kind)) return policy.transformable;

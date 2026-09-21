@@ -6,7 +6,8 @@ import { loadSemanticEvalCases, runSemanticEvaluation } from "./semantic_eval.ts
 // `--detector=ner` scores the local NER detector on the same cases, on the
 // two kinds it claims; the default scores the semantic detector on all three.
 const config = await loadConfig();
-const cases = await loadSemanticEvalCases();
+const casesPath = Deno.args.find((arg) => arg.startsWith("--cases="))?.split("=")[1];
+const cases = await loadSemanticEvalCases(casesPath);
 const report = Deno.args.includes("--detector=ner")
   ? await (async () => {
     const settings = resolveNerDetectorConfig(config);

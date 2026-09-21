@@ -1,12 +1,12 @@
 import type { LocalDetector } from "./detectors.ts";
 import { runDetector } from "./detectors.ts";
-import { SEMANTIC_FINDING_KINDS, type SemanticFindingKind } from "./types.ts";
+import { type FindingKind, SEMANTIC_FINDING_KINDS } from "./types.ts";
 
 export interface SemanticEvalCase {
   id: string;
   scenario: string;
   prompt: string;
-  expectedKinds: SemanticFindingKind[];
+  expectedKinds: FindingKind[];
 }
 
 export interface SemanticEvalReport {
@@ -15,7 +15,7 @@ export interface SemanticEvalReport {
   detector: string;
   model: string;
   cases: number;
-  perKind: Record<SemanticFindingKind, {
+  perKind: Record<string, {
     tp: number;
     fp: number;
     fn: number;
@@ -30,7 +30,7 @@ export interface SemanticEvalReport {
   rawPromptsPersisted: false;
 }
 
-const STUB_LEXICON: Array<{ kind: SemanticFindingKind; text: string }> = [
+const STUB_LEXICON: Array<{ kind: FindingKind; text: string }> = [
   { kind: "person_name", text: "Maya Chen" },
   { kind: "person_name", text: "Ada Lovelace" },
   { kind: "person_name", text: "Grace Hopper" },
@@ -87,8 +87,10 @@ export function offlineSemanticEvalDetector(): LocalDetector {
   };
 }
 
-export async function loadSemanticEvalCases(): Promise<SemanticEvalCase[]> {
-  return (await Deno.readTextFile("evals/semantic_cases.jsonl")).trim().split("\n").map((line) =>
+export async function loadSemanticEvalCases(
+  path = "evals/semantic_cases.jsonl",
+): Promise<SemanticEvalCase[]> {
+  return (await Deno.readTextFile(path)).trim().split("\n").map((line) =>
     JSON.parse(line) as SemanticEvalCase
   );
 }
@@ -100,11 +102,11 @@ export async function runSemanticEvaluation(
   model: string,
   // The kinds the detector under test claims. Expectations for other kinds
   // are ignored so a detector is scored on its own contract, not on another's.
-  kinds: readonly SemanticFindingKind[] = SEMANTIC_FINDING_KINDS,
+  kinds: readonly FindingKind[] = SEMANTIC_FINDING_KINDS,
 ): Promise<SemanticEvalReport> {
   const counts = Object.fromEntries(
     kinds.map((kind) => [kind, { tp: 0, fp: 0, fn: 0 }]),
-  ) as Record<SemanticFindingKind, { tp: number; fp: number; fn: number }>;
+  ) as Record<string, { tp: number; fp: number; fn: number }>;
   const latencies: number[] = [];
   let negativeCases = 0;
   let falsePositiveCases = 0;
@@ -121,9 +123,9 @@ export async function runSemanticEvaluation(
     const actual = new Set(findings.map((finding) => finding.kind));
     const expected = new Set(row.expectedKinds.filter((kind) => kinds.includes(kind)));
     for (const kind of kinds) {
-      if (actual.has(kind) && expected.has(kind)) counts[kind].tp++;
-      else if (actual.has(kind)) counts[kind].fp++;
-      else if (expected.has(kind)) counts[kind].fn++;
+      if (actual.has(kind) && expected.has(kind)) counts[kind]!.tp++;
+      else if (actual.has(kind)) counts[kind]!.fp++;
+      else if (expected.has(kind)) counts[kind]!.fn++;
     }
     if (expected.size === 0) {
       negativeCases++;

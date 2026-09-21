@@ -266,6 +266,22 @@ deno run --no-prompt --allow-read=config,evals --allow-net=127.0.0.1 \
 
 The reference run on an Apple M4 is recorded in [EVALUATION.md](EVALUATION.md).
 
+### Prompt-injection detection
+
+The same sidecar can score each request for prompt injection with a second, purpose-built
+classifier. It is opt-in: add `prompt_injection` to `nerDetector.kinds`, and the sidecar loads the
+classifier on first use. The finding is the highest-scoring window of the text, reported as a
+literal substring, with the classifier's score as confidence.
+
+`prompt_injection` belongs in `blockKinds`, as the shipped examples have it, and every finding is
+low precision by construction. That makes `policy.sensitivity` the control: `balanced` routes a
+flagged request to local inference, `strict` refuses it, `review` holds it for a person. Measured on
+the shipped injection cases (`deno task eval:injection`): 8 of 8 attacks caught, 2 of 10 benign
+prompts flagged, none of the 67 realistic scenario documents flagged. A benign question that
+mentions a denied request or an instruction to ignore an old checklist can trip it, which is why it
+never hard-denies on its own. Injection is a property of a request; response scanning ignores the
+kind.
+
 ## Reference local semantic detector
 
 The semantic detector is off by default. It may reference only an OpenAI-compatible provider with

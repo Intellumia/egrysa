@@ -21,6 +21,7 @@
     "dev": "deno run --env-file=.env.local --no-prompt --allow-read=config,data --allow-write=data --allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_AUDITOR_KEYS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY,OPENAI_API_KEY,ANTHROPIC_API_KEY --allow-net=127.0.0.1:8787,localhost:11434,127.0.0.1:11436,api.openai.com,api.anthropic.com src/main.ts",
     "test": "deno test --allow-env --allow-read --allow-write --allow-net=127.0.0.1",
     "eval": "deno run --no-prompt --allow-read=config,evals src/eval.ts",
+    "eval:injection": "deno run --no-prompt --allow-read=config,evals --allow-env=EGRYSA_CONFIG --allow-net=127.0.0.1,localhost,[::1] src/eval_semantic.ts --detector=ner --cases=evals/injection_cases.jsonl",
     "eval:ner": "deno run --no-prompt --allow-read=config,evals --allow-env=EGRYSA_CONFIG --allow-net=127.0.0.1,localhost,[::1] src/eval_semantic.ts --detector=ner",
     "eval:semantic": "deno run --no-prompt --allow-read=config,evals --allow-env=EGRYSA_CONFIG --allow-net=127.0.0.1,localhost,[::1] src/eval_semantic.ts",
     "dev:stub": "EGRYSA_CONFIG=config/egrysa.stub.json deno run --env-file=.env.stub --no-prompt --allow-read=config,data --allow-write=data --allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_AUDITOR_KEYS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY --allow-net=127.0.0.1:8787,127.0.0.1:11435 src/main.ts",

@@ -41,6 +41,12 @@ PORT = int(os.environ.get("EGRYSA_NER_PORT", "11436"))
 MODEL = os.environ.get("EGRYSA_NER_MODEL", "urchade/gliner_multi_pii-v1")
 REVISION = os.environ.get("EGRYSA_NER_MODEL_REVISION", "1fcf13e85f4eef5394e1fcd406cf2ca9ea82351d")
 THRESHOLD = float(os.environ.get("EGRYSA_NER_THRESHOLD", "0.5"))
+# Prompt-injection classifier. Loaded only when a request asks for the
+# prompt_injection kind, so a deployment that does not use it pays nothing.
+INJECTION_MODEL = os.environ.get("EGRYSA_INJECTION_MODEL", "protectai/deberta-v3-base-prompt-injection-v2")
+INJECTION_REVISION = os.environ.get("EGRYSA_INJECTION_MODEL_REVISION", "90c9989b1a342275dd0d1a95aad283c04e075671")
+INJECTION_THRESHOLD = float(os.environ.get("EGRYSA_INJECTION_THRESHOLD", "0.9"))
+INJECTION_WINDOW = 512  # tokens the classifier reads; longer text is scored in windows
 MAX_BODY_BYTES = 1024 * 1024
 MAX_FINDINGS = 512
 CONTRACT_VERSION = "1"
@@ -56,6 +62,7 @@ LABELS = {
     "street address": "physical_address",
     "organization": "organization",
 }
+INJECTION_KIND = "prompt_injection"
 
 # The model fires "person" on role nouns. These are filtered rather than
 # lowered in threshold, because a real name and "the patient" score alike.
@@ -102,11 +109,48 @@ class Detector:
         except TypeError:
             self.model = GLiNER.from_pretrained(MODEL)
         self.lock = threading.Lock()
+        self.injection = None
+
+    def _injection_classifier(self):
+        if self.injection is None:
+            from transformers import pipeline
+
+            kwargs = {"truncation": True, "max_length": INJECTION_WINDOW}
+            if INJECTION_REVISION:
+                kwargs["revision"] = INJECTION_REVISION
+            self.injection = pipeline("text-classification", model=INJECTION_MODEL, **kwargs)
+        return self.injection
+
+    def detect_injection(self, text: str) -> list[dict]:
+        """Scores the text in overlapping windows; the finding is the window that scored highest.
+
+        The window text is a literal substring of the request, which is what the
+        gateway's contract requires, and it names no more than the classifier saw.
+        """
+        classifier = self._injection_classifier()
+        # Roughly four characters per token; overlap so an attack on a boundary is seen whole.
+        size, step = INJECTION_WINDOW * 4, INJECTION_WINDOW * 3
+        windows = [text[start:start + size] for start in range(0, max(1, len(text)), step)]
+        best: tuple[float, str] | None = None
+        with self.lock:
+            for window in windows:
+                if not window.strip():
+                    continue
+                result = classifier(window)[0]
+                score = float(result["score"]) if result["label"] == "INJECTION" else 1 - float(result["score"])
+                if best is None or score > best[0]:
+                    best = (score, window)
+        if best is None or best[0] < INJECTION_THRESHOLD:
+            return []
+        return [{"kind": INJECTION_KIND, "text": best[1], "confidence": round(best[0], 4)}]
 
     def detect(self, text: str, kinds: list[str]) -> list[dict]:
+        findings: list[dict] = []
+        if INJECTION_KIND in kinds:
+            findings.extend(self.detect_injection(text))
         labels = [label for label, kind in LABELS.items() if kind in kinds]
         if not labels:
-            return []
+            return findings[:MAX_FINDINGS]
         with self.lock:
             entities = self.model.predict_entities(text, labels, threshold=THRESHOLD)
         best: dict[tuple[str, str], float] = {}
@@ -117,10 +161,10 @@ class Detector:
                 continue
             key = (kind, candidate)
             best[key] = max(best.get(key, 0.0), float(entity["score"]))
-        findings = [
+        findings.extend(
             {"kind": kind, "text": candidate, "confidence": round(score, 4)}
             for (kind, candidate), score in best.items()
-        ]
+        )
         return findings[:MAX_FINDINGS]
 
 
@@ -162,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
             not isinstance(body, dict)
             or body.get("contractVersion") != CONTRACT_VERSION
             or not isinstance(body.get("kinds"), list)
-            or not all(kind in LABELS.values() for kind in body["kinds"])
+            or not all(kind in LABELS.values() or kind == INJECTION_KIND for kind in body["kinds"])
             or not isinstance(body.get("text"), str)
         ):
             self._json(422, {"error": "unsupported request"})
