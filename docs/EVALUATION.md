@@ -1,8 +1,9 @@
 # Evaluation record
 
-Date: 2026-09-20
+Date: 2026-09-21
 
-Measured implementation commit: `5002c7879a0f5bbc88cf0881a0ed4beeba72846b` (tag `v0.1.0-alpha.4`)
+Measured implementation commit: `8c4e701` on `main` (the release commit for `v0.1.0-alpha.5` is this
+record's own docs-only successor; the implementation is identical)
 
 Runtime: Deno 2.9.4 on Apple Silicon, matching the CI pin
 
@@ -12,16 +13,16 @@ Suite: `egrysa-synthetic-v2`
 
 | Gate                                          |                                                  Result |
 | --------------------------------------------- | ------------------------------------------------------: |
-| Unit/integration tests                        |       89 passed, 0 failed, 1 ignored (opt-in live test) |
+| Unit/integration tests                        |      156 passed, 0 failed, 1 ignored (opt-in live test) |
 | Black-box compatibility acceptance            |                                      2 passed, 0 failed |
-| Expected data-class decisions                 |                                                   48/48 |
-| Exact expected finding sets                   |                                                   48/48 |
+| Expected data-class decisions                 |                                                   61/61 |
+| Exact expected finding sets                   |                                                   61/61 |
 | Macro detector precision / recall             |                                             1.00 / 1.00 |
 | Negative-case false positives                 |                                                       0 |
-| Adversarial corpus, balanced sensitivity      |                   77/102 detected, 0/19 false positives |
-| Realistic scenario corpus                     | 64/67 detected, 0 undisclosed misses, 0 false positives |
+| Adversarial corpus, balanced sensitivity      |                  113/119 detected, 0/24 false positives |
+| Realistic scenario corpus                     | 65/67 detected, 0 undisclosed misses, 0 false positives |
 | High-severity secret egress                   |                                                       0 |
-| Mean classifier plus policy time              |                             0.12 ms in the measured run |
+| Mean classifier plus policy time              |                             0.15 ms in the measured run |
 | Raw prompt persistence by evaluation harness  |                                                   false |
 | End-to-end surrogate/recomposition path       |                      passed against local HTTP upstream |
 | SSE split-token recomposition                 |                                passed against local SSE |
