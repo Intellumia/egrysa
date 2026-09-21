@@ -583,6 +583,22 @@ function isCheckpoint(value: unknown): value is ReceiptCheckpoint {
     typeof checkpoint.signature === "string";
 }
 
+// Verifies a signed chain checkpoint against the published public key, for
+// auditors, export consumers, and the receipt-log verification tool.
+export async function verifyCheckpoint(
+  checkpoint: ReceiptCheckpoint,
+  publicKeySpki: string,
+): Promise<boolean> {
+  if (!isCheckpoint(checkpoint)) return false;
+  const publicKey = await importEd25519PublicKey(publicKeySpki);
+  return checkpoint.signingKeyId === await signingKeyIdentifier(publicKeySpki) &&
+    await ed25519Verify(
+      publicKey,
+      checkpoint.signature,
+      JSON.stringify(unsignedCheckpoint(checkpoint)),
+    );
+}
+
 function unsignedCheckpoint(checkpoint: ReceiptCheckpoint): Record<string, unknown> {
   return {
     version: checkpoint.version,
