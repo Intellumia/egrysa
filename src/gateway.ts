@@ -1,3 +1,10 @@
+import {
+  toAnthropicError,
+  toAnthropicMessage,
+  toAnthropicStream,
+  toChatRequest,
+  validateAnthropicRequest,
+} from "./anthropic_ingress.ts";
 import { InboundAuth } from "./auth.ts";
 import { BodySizeLimitError, readBoundedBytes } from "./bounded.ts";
 import { inspectChat, transformChat } from "./chat.ts";
@@ -94,6 +101,58 @@ export class Gateway {
 
   async handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/v1/messages") {
+      return await this.anthropic(request);
+    }
+    return await this.route(request, url);
+  }
+
+  // Anthropic Messages API ingress: the same pipeline, translated on the way
+  // in and on the way out. The internal response is OpenAI-shaped; problems
+  // are the gateway's problem documents.
+  private async anthropic(request: Request): Promise<Response> {
+    if (request.method !== "POST") {
+      return this.anthropicProblem(problem(404, "not_found", "Route not found."));
+    }
+    const url = new URL(request.url);
+    const internal = await this.route(request, url, "anthropic");
+    const contentType = internal.headers.get("content-type") ?? "";
+    if (internal.status >= 400 && contentType.includes("application/json")) {
+      return this.anthropicProblem(internal);
+    }
+    if (contentType.includes("text/event-stream")) {
+      const model = internal.headers.get("x-egrysa-model") ?? "";
+      const headers = new Headers(internal.headers);
+      headers.delete("x-egrysa-model");
+      return new Response(toAnthropicStream(internal.body!, model), {
+        status: internal.status,
+        headers,
+      });
+    }
+    if (contentType.includes("application/json")) {
+      const data = await internal.json() as Record<string, unknown>;
+      const headers = new Headers(internal.headers);
+      headers.delete("x-egrysa-model");
+      return new Response(JSON.stringify(toAnthropicMessage(data)), {
+        status: internal.status,
+        headers,
+      });
+    }
+    return internal;
+  }
+
+  private async anthropicProblem(internal: Response): Promise<Response> {
+    const body = await internal.json().catch(() => ({})) as Record<string, unknown>;
+    const status = internal.status === 422 ? 400 : internal.status;
+    const headers = new Headers(internal.headers);
+    return new Response(JSON.stringify(toAnthropicError(status, body)), { status, headers });
+  }
+
+  private async route(
+    request: Request,
+    url: URL,
+    ingress: "openai" | "anthropic" = "openai",
+  ): Promise<Response> {
     if (request.method === "GET" && url.pathname === "/healthz") return json({ status: "ok" });
     if (request.method === "GET" && url.pathname === "/readyz") {
       return json({ status: "ready" });
@@ -122,13 +181,18 @@ export class Gateway {
     if (request.method === "GET" && url.pathname === "/v1/models") {
       return this.models(auth.workloadId);
     }
-    if (request.method !== "POST" || url.pathname !== "/v1/chat/completions") {
+    const chatRoute = ingress === "anthropic" ? "/v1/messages" : "/v1/chat/completions";
+    if (request.method !== "POST" || url.pathname !== chatRoute) {
       return problem(404, "not_found", "Route not found.");
     }
-    return await this.chat(request, auth.workloadId);
+    return await this.chat(request, auth.workloadId, ingress);
   }
 
-  private async chat(request: Request, workloadId: string): Promise<Response> {
+  private async chat(
+    request: Request,
+    workloadId: string,
+    ingress: "openai" | "anthropic" = "openai",
+  ): Promise<Response> {
     // Everything below decides against the workload's effective policy.
     const config = resolveWorkloadConfig(this.config, workloadId);
     const workload = this.config.workloads?.[workloadId];
@@ -151,7 +215,13 @@ export class Gateway {
     let receiptId: string | undefined;
     let providerInvocationFailed = false;
     try {
-      const body = await readJson(request, this.config.maxRequestBytes);
+      const raw = await readJson(request, this.config.maxRequestBytes);
+      let body: unknown = raw;
+      if (ingress === "anthropic") {
+        const refusal = validateAnthropicRequest(raw);
+        if (refusal) return problem(422, "unsupported_request", refusal);
+        body = toChatRequest(raw as never);
+      }
       const validation = validateChat(body);
       if (validation) return problem(422, "unsupported_request", validation);
       const chat = body as ChatRequest;
@@ -375,6 +445,7 @@ export class Gateway {
             "x-accel-buffering": "no",
             "x-egrysa-receipt": receipt.id,
             "x-egrysa-decision": policy.decision,
+            ...(ingress === "anthropic" ? { "x-egrysa-model": chat.model } : {}),
             ...downgradeHeaders(invocation.downgraded),
             ...securityHeaders(),
           },

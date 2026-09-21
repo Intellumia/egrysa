@@ -40,6 +40,12 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Anthropic Messages API ingress. `POST /v1/messages` accepts the Messages request shape (system
+  prompt, text, `tool_use` and `tool_result` blocks, tools, `tool_choice`, streaming), translates it
+  to the internal chat request, runs the unchanged policy, transformation, receipt, and provider
+  pipeline, and answers as an Anthropic message, as the `message_start` to `message_stop` event
+  sequence, or as the Anthropic error object carrying the receipt id. `top_k`, `stop_sequences`,
+  `metadata`, and non-text blocks are refused rather than dropped.
 - Surrogate style and scope. `policy.surrogates.style` chooses sentinel tokens (default) or
   format-preserving synthetic values from reserved ranges, which models handle as ordinary text
   while local recomposition restores the originals; `policy.surrogates.scope` chooses fresh
