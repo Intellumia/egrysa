@@ -39,7 +39,8 @@
     "receipts:verify": "deno run --no-prompt --allow-read tools/verify_receipt_log.ts",
     "start": "deno run --frozen --cached-only --no-prompt --allow-read=config,data --allow-write=data --allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_AUDITOR_KEYS,EGRYSA_EXPORT_HEADERS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY,EGRYSA_RECEIPT_CHAIN_SUFFIX,EGRYSA_SIGNER_HEADERS,OPENAI_API_KEY,ANTHROPIC_API_KEY,AZURE_OPENAI_API_KEY,AWS_BEARER_TOKEN_BEDROCK,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,GOOGLE_ACCESS_TOKEN,GOOGLE_SERVICE_ACCOUNT_JSON --allow-net=0.0.0.0:8787,api.openai.com,api.anthropic.com,localhost:11434,127.0.0.1:11436 src/main.ts",
     "compile": "deno compile --frozen --no-prompt --allow-read=config,data --allow-write=data --allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_AUDITOR_KEYS,EGRYSA_EXPORT_HEADERS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY,EGRYSA_RECEIPT_CHAIN_SUFFIX,EGRYSA_SIGNER_HEADERS,OPENAI_API_KEY,ANTHROPIC_API_KEY,AZURE_OPENAI_API_KEY,AWS_BEARER_TOKEN_BEDROCK,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,GOOGLE_ACCESS_TOKEN,GOOGLE_SERVICE_ACCOUNT_JSON --allow-net=127.0.0.1:8787,0.0.0.0:8787,api.openai.com,api.anthropic.com,localhost:11434,127.0.0.1:11436 --output dist/egrysa src/main.ts",
-    "smoke": "deno test --env-file=.env.local --allow-net=api.openai.com --allow-env=OPENAI_API_KEY,EGRYSA_LIVE_TEST tests/live_openai_test.ts"
+    "smoke": "deno test --env-file=.env.local --allow-net=api.openai.com --allow-env=OPENAI_API_KEY,EGRYSA_LIVE_TEST tests/live_openai_test.ts",
+    "smoke:cloud": "deno test --env-file=.env.local --allow-net --allow-env --allow-read --allow-write tests/live_cloud_test.ts"
   },
   "exclude": ["dist", "artifacts"]
 }

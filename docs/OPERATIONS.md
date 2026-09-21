@@ -203,6 +203,25 @@ run the gateway with an explicit list for your deployment rather than the shippe
 
 Conformance reports for these kinds are wanted; the provider matrix in the README marks them so.
 
+### Live check
+
+`deno task smoke:cloud` runs one live check per cloud provider through the whole gateway: an email
+in the prompt must leave as a surrogate, the reply must come back recomposed, the receipt must
+verify and record completed egress, and the streaming path must do the same and end with `[DONE]`.
+Each check is skipped unless its details are in `.env.local`; nothing is printed but the provider,
+model, and receipt id.
+
+| Provider     | Credential (one of)                                                                                  | Endpoint details                                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY`                                                                               | `EGRYSA_LIVE_AZURE_ENDPOINT` (`https://<resource>.openai.azure.com`), `EGRYSA_LIVE_AZURE_DEPLOYMENT`, optional `EGRYSA_LIVE_AZURE_API_VERSION`, `EGRYSA_LIVE_AZURE_MODEL` |
+| Bedrock      | `AWS_BEARER_TOKEN_BEDROCK`, or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` (+ `AWS_SESSION_TOKEN`) | `EGRYSA_LIVE_BEDROCK_REGION`, `EGRYSA_LIVE_BEDROCK_MODEL`                                                                                                                 |
+| Vertex AI    | `GOOGLE_SERVICE_ACCOUNT_JSON` (key file contents) or `GOOGLE_ACCESS_TOKEN`                           | `EGRYSA_LIVE_VERTEX_PROJECT`, `EGRYSA_LIVE_VERTEX_REGION`, `EGRYSA_LIVE_VERTEX_MODEL`                                                                                     |
+
+The task runs the test runner, not the gateway, with unrestricted network and environment
+permissions because the hosts are deployment-specific; the gateway itself keeps its explicit lists.
+After a passing live check, run `deno task conformance -- --provider <id>` with the same provider in
+a configuration file to produce the dated report the README support matrix is built from.
+
 ## Surrogate style and scope
 
 `policy.surrogates` (globally or per workload) chooses how transformable values are replaced before
