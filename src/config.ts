@@ -11,6 +11,7 @@ import {
   type SemanticDetectorConfig,
   type SemanticFindingKind,
   SENSITIVITIES,
+  type WorkloadPolicy,
 } from "./types.ts";
 import { PROVIDER_CAPABILITY_TABLE } from "./provider_capabilities.ts";
 
@@ -110,8 +111,9 @@ export function validateConfig(config: AppConfig): void {
   }
   validateSemanticDetectorConfig(config);
   validateNerDetectorConfig(config);
-  validatePolicyTaxonomy(config);
-  validateResponsePolicy(config);
+  validatePolicyTaxonomy(config.policy);
+  validateResponsePolicy(config.policy);
+  validateWorkloads(config);
   if (
     config.policy.sensitivity !== undefined &&
     !SENSITIVITIES.includes(config.policy.sensitivity)
@@ -285,8 +287,101 @@ function validateOptionalSemanticFields(config: SemanticDetectorConfig): void {
   }
 }
 
-function validateResponsePolicy(config: AppConfig): void {
-  const raw = config.policy.response;
+// The effective configuration for one workload: the global policy with the
+// workload's override fields applied. Provider and detector definitions are
+// never changed here; allowedProviders and allowedModels are enforced by the
+// gateway against the request instead.
+export function resolveWorkloadConfig(config: AppConfig, workloadId: string): AppConfig {
+  const override = config.workloads?.[workloadId];
+  if (!override) return config;
+  const { allowedProviders: _providers, allowedModels: _models, ...policy } = override;
+  return { ...config, policy: { ...config.policy, ...policy } };
+}
+
+const WORKLOAD_FIELDS = new Set([
+  "blockKinds",
+  "localOnlyKinds",
+  "transformKinds",
+  "sensitiveTerms",
+  "sensitivity",
+  "response",
+  "defaultProvider",
+  "allowedProviders",
+  "allowedModels",
+]);
+
+function validateWorkloads(config: AppConfig): void {
+  const raw = config.workloads;
+  if (raw === undefined) return;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("workloads must be an object keyed by workload id");
+  }
+  const providerIds = new Set(config.providers.map((provider) => provider.id));
+  for (const [workloadId, override] of Object.entries(raw)) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(workloadId)) {
+      throw new Error(`workloads: invalid workload id ${JSON.stringify(workloadId)}`);
+    }
+    if (!override || typeof override !== "object" || Array.isArray(override)) {
+      throw new Error(`workloads.${workloadId} must be an object`);
+    }
+    for (const key of Object.keys(override)) {
+      if (!WORKLOAD_FIELDS.has(key)) {
+        throw new Error(`workloads.${workloadId} has unknown field: ${key}`);
+      }
+    }
+    const typed = override as WorkloadPolicy;
+    for (const list of ["allowedProviders", "allowedModels"] as const) {
+      const values = typed[list];
+      if (values === undefined) continue;
+      if (
+        !Array.isArray(values) || values.length === 0 ||
+        values.some((value) => typeof value !== "string" || !value) ||
+        new Set(values).size !== values.length
+      ) throw new Error(`workloads.${workloadId}.${list} must be a non-empty list of unique ids`);
+    }
+    for (const id of typed.allowedProviders ?? []) {
+      if (!providerIds.has(id)) {
+        throw new Error(`workloads.${workloadId}.allowedProviders names unknown provider ${id}`);
+      }
+    }
+    const merged = resolveWorkloadConfig(config, workloadId);
+    if (!providerIds.has(merged.policy.defaultProvider)) {
+      throw new Error(`workloads.${workloadId}.defaultProvider does not exist`);
+    }
+    if (
+      typed.allowedProviders !== undefined &&
+      !typed.allowedProviders.includes(merged.policy.defaultProvider)
+    ) {
+      throw new Error(`workloads.${workloadId}: defaultProvider must be in allowedProviders`);
+    }
+    if (
+      merged.policy.sensitivity !== undefined && !SENSITIVITIES.includes(merged.policy.sensitivity)
+    ) throw new Error(`workloads.${workloadId}.sensitivity is invalid`);
+    if (!Array.isArray(merged.policy.sensitiveTerms)) {
+      throw new Error(`workloads.${workloadId}.sensitiveTerms must be an array`);
+    }
+    for (const item of merged.policy.sensitiveTerms) {
+      if (
+        typeof item?.term !== "string" || typeof item.label !== "string" || item.term.length < 4 ||
+        !item.label
+      ) {
+        throw new Error(
+          `workloads.${workloadId}: sensitive terms require a label and four characters`,
+        );
+      }
+    }
+    try {
+      validatePolicyTaxonomy(merged.policy);
+      validateResponsePolicy(merged.policy);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`workloads.${workloadId}: ${message}`);
+    }
+  }
+}
+
+function validateResponsePolicy(policy: AppConfig["policy"]): void {
+  const raw = policy.response;
   if (raw === undefined) return;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("policy.response must be an object");
@@ -307,11 +402,11 @@ function validateResponsePolicy(config: AppConfig): void {
   }
 }
 
-function validatePolicyTaxonomy(config: AppConfig): void {
+function validatePolicyTaxonomy(policy: AppConfig["policy"]): void {
   const groups: Array<[string, FindingKind[]]> = [
-    ["blockKinds", config.policy.blockKinds],
-    ["localOnlyKinds", config.policy.localOnlyKinds],
-    ["transformKinds", config.policy.transformKinds],
+    ["blockKinds", policy.blockKinds],
+    ["localOnlyKinds", policy.localOnlyKinds],
+    ["transformKinds", policy.transformKinds],
   ];
   const allowed = new Set<string>(FINDING_KINDS);
   const assignments = new Map<FindingKind, string[]>();

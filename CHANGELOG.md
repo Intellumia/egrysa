@@ -40,6 +40,12 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Per-workload policy. An optional `workloads` map keyed by inbound workload id overrides the
+  data-class actions, sensitive terms, sensitivity, response policy, and default provider for that
+  workload, and can narrow the providers and models it may use. Overrides inherit everything they do
+  not name, the merged policy is validated at startup under the global rules, model discovery is
+  filtered per workload, and a request outside a workload's provider or model allowance is refused
+  before inspection.
 - Twelve further data classes in the deterministic floor: `ipv6` (full, compressed, IPv4-mapped, and
   bracketed URL forms), `mac_address`, `date_of_birth` (labelled), `aadhaar` (Verhoeff),
   `india_pan`, `uk_nino`, `nhs_number` (labelled, modulus 11), `passport` (labelled), `bank_account`

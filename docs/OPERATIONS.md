@@ -129,6 +129,38 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Per-workload policy
+
+Every inbound key carries a workload id, and a workload can carry its own policy. An override names
+only the fields it changes and inherits the rest from `policy`; the merged result is validated at
+startup under the same rules as the global policy, so a workload can never end up with an unassigned
+data class or an unknown provider.
+
+```json
+{
+  "workloads": {
+    "finance": {
+      "blockKinds": ["credit_card", "private_key", "api_secret", "ssn", "email", "..."],
+      "transformKinds": ["phone", "ipv4", "..."],
+      "sensitivity": "strict",
+      "response": { "blocked": "deny" },
+      "defaultProvider": "local",
+      "allowedProviders": ["local"],
+      "allowedModels": ["gpt-oss:20b"]
+    }
+  }
+}
+```
+
+`allowedProviders` and `allowedModels` narrow what the workload may use: a request that names
+another provider in `x-egrysa-provider`, or a model outside the list, is refused before inspection
+(403 and 422 respectively), and `GET /v1/models` shows that workload only what it may use. Provider
+and detector definitions are global; a workload cannot add a provider, only decline to use one.
+
+A policy for a workload id that has no inbound key logs `workload_policy_without_key` at startup.
+Receipts already carry the workload id, so the policy that applied to a request is the global policy
+merged with that workload's override in the configuration version that was running.
+
 ## Response scanning
 
 The provider's reply is inspected with the same detectors as the request, before recomposition. At

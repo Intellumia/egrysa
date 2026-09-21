@@ -146,6 +146,26 @@ export interface AppConfig {
     // made before recomposition, so they are provider-originated.
     response?: ResponsePolicyConfig;
   };
+  // Per-workload overrides keyed by the workload id an inbound key carries.
+  // Each override replaces the fields it names and inherits the rest; the
+  // merged policy is validated at startup under the same rules as the global
+  // one, so a workload can never end up with an unassigned data class.
+  workloads?: Record<string, WorkloadPolicy>;
+}
+
+export interface WorkloadPolicy {
+  blockKinds?: FindingKind[];
+  localOnlyKinds?: FindingKind[];
+  transformKinds?: FindingKind[];
+  sensitiveTerms?: Array<{ term: string; label: string }>;
+  sensitivity?: Sensitivity;
+  response?: ResponsePolicyConfig;
+  defaultProvider?: string;
+  // Providers this workload may use, by id. A request naming another
+  // provider, or a default outside the list, is refused.
+  allowedProviders?: string[];
+  // Models this workload may request, across providers.
+  allowedModels?: string[];
 }
 
 export interface ResponsePolicyConfig {
