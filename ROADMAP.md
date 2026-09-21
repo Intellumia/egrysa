@@ -77,7 +77,7 @@ inside infrastructure the operator owns.
 - Support key rotation and per-tenant signing keys without breaking receipt hash-chain continuity or
   existing public verification material.
 
-### IPv6 detection support
+### IPv6 detection support (shipped in 0.1.0-alpha.5, together with eleven further kinds)
 
 - Add deterministic classification for full, compressed, zero-run, and IPv4-mapped IPv6 formats to
   the fail-closed detector floor, closing the exclusion recorded at

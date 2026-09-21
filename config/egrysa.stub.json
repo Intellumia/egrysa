@@ -48,7 +48,13 @@
       "credit_card",
       "private_key",
       "api_secret",
-      "ssn"
+      "ssn",
+      "aadhaar",
+      "india_pan",
+      "uk_nino",
+      "nhs_number",
+      "passport",
+      "bank_account"
     ],
     "localOnlyKinds": [
       "confidential_term",
@@ -60,7 +66,13 @@
       "ipv4",
       "iban",
       "person_name",
-      "physical_address"
+      "physical_address",
+      "ipv6",
+      "mac_address",
+      "date_of_birth",
+      "crypto_wallet",
+      "vin",
+      "organization"
     ],
     "sensitiveTerms": [
       {

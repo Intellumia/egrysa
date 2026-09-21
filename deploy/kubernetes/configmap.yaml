@@ -34,9 +34,9 @@ data:
       "policy": {
         "defaultProvider": "openai",
         "localProvider": "local",
-        "blockKinds": ["credit_card", "private_key", "api_secret", "ssn"],
+        "blockKinds": ["credit_card", "private_key", "api_secret", "ssn", "aadhaar", "india_pan", "uk_nino", "nhs_number", "passport", "bank_account"],
         "localOnlyKinds": ["confidential_term"],
-        "transformKinds": ["email", "phone", "ipv4", "iban"],
+        "transformKinds": ["email", "phone", "ipv4", "iban", "ipv6", "mac_address", "date_of_birth", "crypto_wallet", "vin", "organization"],
         "sensitiveTerms": [{ "term": "REPLACE BEFORE DEPLOYMENT", "label": "confidential" }]
       }
     }

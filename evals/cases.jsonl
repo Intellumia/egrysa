@@ -46,3 +46,16 @@
 {"id":"false-positive-013","scenario":"short numeric code","prompt":"Enter verification code 123456.","expectedKinds":[],"expectedDecision":"deny"}
 {"id":"false-positive-014","scenario":"date and time","prompt":"The meeting is 2026-07-15 at 09:30.","expectedKinds":[],"expectedDecision":"deny"}
 {"id":"false-positive-015","scenario":"ordinary prose","prompt":"Summarize quarterly operating expenses by department.","expectedKinds":[],"expectedDecision":"deny"}
+{"id":"identity-001","scenario":"Aadhaar number","prompt":"Aadhaar 2345 6789 0124 on file.","expectedKinds":["aadhaar"],"expectedDecision":"deny"}
+{"id":"identity-002","scenario":"Indian PAN","prompt":"PAN ABCPE1234F submitted.","expectedKinds":["india_pan"],"expectedDecision":"deny"}
+{"id":"identity-003","scenario":"UK National Insurance number","prompt":"NI AB123456C recorded.","expectedKinds":["uk_nino"],"expectedDecision":"deny"}
+{"id":"identity-004","scenario":"NHS number","prompt":"NHS 943 476 5919 referral.","expectedKinds":["nhs_number"],"expectedDecision":"deny"}
+{"id":"identity-005","scenario":"Passport number","prompt":"passport no. X1234567 attached.","expectedKinds":["passport"],"expectedDecision":"deny"}
+{"id":"identity-006","scenario":"Date of birth","prompt":"Date of birth 1987-03-14.","expectedKinds":["date_of_birth"],"expectedDecision":"transform"}
+{"id":"network-003","scenario":"IPv6 address","prompt":"Host 2001:db8::8a2e:370:7334 answered.","expectedKinds":["ipv6"],"expectedDecision":"transform"}
+{"id":"network-004","scenario":"MAC address","prompt":"Device 00-1A-2B-3C-4D-5E joined.","expectedKinds":["mac_address"],"expectedDecision":"transform"}
+{"id":"finance-010","scenario":"Routing number","prompt":"ABA 021000021 for the transfer.","expectedKinds":["bank_account"],"expectedDecision":"deny"}
+{"id":"finance-011","scenario":"Ethereum address","prompt":"Pay 0x52908400098527886E0F7030069857D2E4169EE7 now.","expectedKinds":["crypto_wallet"],"expectedDecision":"transform"}
+{"id":"finance-012","scenario":"VIN","prompt":"VIN 1HGCM82633A004352 registered.","expectedKinds":["vin"],"expectedDecision":"transform"}
+{"id":"negative-010","scenario":"Clock time and scope operator","prompt":"Ran at 12:30:45 using std::vector.","expectedKinds":[],"expectedDecision":"deny"}
+{"id":"negative-011","scenario":"Invalid Aadhaar checksum is phone-shaped, not an Aadhaar","prompt":"Aadhaar 2345 6789 0123 is malformed.","expectedKinds":["phone"],"expectedDecision":"transform"}

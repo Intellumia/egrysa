@@ -85,14 +85,26 @@ from its README.
 | `private_key`       | Private key material                              |
 | `api_secret`        | API keys, tokens, and credentials                 |
 | `confidential_term` | Operator-configured confidential terms            |
+| `ipv6`              | IPv6 addresses, including bracketed URL forms     |
+| `mac_address`       | Hardware addresses                                |
+| `date_of_birth`     | A date labelled as a birth date                   |
+| `aadhaar`           | Indian Aadhaar numbers                            |
+| `india_pan`         | Indian permanent account numbers                  |
+| `uk_nino`           | UK National Insurance numbers                     |
+| `nhs_number`        | NHS numbers, labelled                             |
+| `passport`          | Passport numbers, labelled                        |
+| `bank_account`      | Labelled routing and account numbers              |
+| `crypto_wallet`     | Cryptocurrency wallet addresses                   |
+| `vin`               | Vehicle identification numbers                    |
 
 The evaluation configuration also defines two confidential terms, `Project Nightingale` and
 `Example Acquisition Target`. Use them if a scenario naturally calls for an internal codename.
 
-Three further categories exist but are **not** detected in the default configuration: person names,
-physical addresses, and IPv6 addresses. Include them where a document would naturally contain them
-and label them `person_name`, `physical_address`, or `ipv6`. They are expected to be missed, and
-cases covering them confirm the documented exclusions rather than finding new gaps.
+Three further categories exist but are **not** detected unless the local NER detector is enabled:
+person names, physical addresses, and organisations. Include them where a document would naturally
+contain them and label them `person_name`, `physical_address`, or `organization`. Under the default
+configuration they are expected to be missed, and cases covering them confirm the documented
+exclusion rather than finding new gaps.
 
 ## Format
 
@@ -109,12 +121,12 @@ object spanning several lines will not parse.
 
 `expectedDecision` follows from the kinds present:
 
-| If the document contains                                                                      | `expectedDecision` |
-| --------------------------------------------------------------------------------------------- | ------------------ |
-| `credit_card`, `private_key`, `api_secret`, or `ssn`                                          | `deny`             |
-| `confidential_term` and none of the above                                                     | `local_only`       |
-| `email`, `phone`, `ipv4`, `iban`, `person_name`, or `physical_address`, and none of the above | `transform`        |
-| nothing sensitive                                                                             | `allow_raw`        |
+| If the document contains                                                                                                          | `expectedDecision` |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `credit_card`, `private_key`, `api_secret`, `ssn`, `aadhaar`, `india_pan`, `uk_nino`, `nhs_number`, `passport`, or `bank_account` | `deny`             |
+| `confidential_term` and none of the above                                                                                         | `local_only`       |
+| any other listed category, and none of the above                                                                                  | `transform`        |
+| nothing sensitive                                                                                                                 | `allow_raw`        |
 
 `evals/scenarios.jsonl` in this repository is a worked example of the format. Reading it is safe: it
 contains documents and labels, not implementation. Reading it will bias your scenarios toward the

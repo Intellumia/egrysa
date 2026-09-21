@@ -106,6 +106,100 @@ const patterns: Array<{
       /(?<!\w)(?<!\d[ -])(?:\+\d[\d .()-]{7,}\d|\(\d{2,4}\)[ -]?\d[\d -]{5,}\d|\d{3}[- ]\d{3}[- ]\d{4}|\d{3,4} \d{3,4} \d{4})(?!\w|[ -]\d)/g,
     validate: validatePhone,
   },
+  {
+    // Any run of hex groups joined by colons is a candidate; the validator
+    // applies the address grammar, so a clock time or a C++ scope operator
+    // is a candidate that fails rather than a match. The bracketed form is
+    // what a URL authority carries.
+    kind: "ipv6",
+    regex:
+      /(?<![\w:.-])(?:[0-9A-Fa-f]{1,4})?(?::[0-9A-Fa-f]{0,4}){2,7}(?:\.\d{1,3}){0,3}(?![\w:.])/g,
+    validate: validateIpv6,
+  },
+  {
+    // The bracketed form a URL authority carries; a port may follow it.
+    kind: "ipv6",
+    regex: /\[(?:[0-9A-Fa-f]{1,4})?(?::[0-9A-Fa-f]{0,4}){2,7}(?:\.\d{1,3}){0,3}\](?![\w.])/g,
+    validate: validateIpv6,
+  },
+  {
+    // Six hex pairs with one consistent separator. An IPv6 address never
+    // has exactly six two-digit groups, so the two cannot be confused.
+    kind: "mac_address",
+    regex: /(?<![\w:-])[0-9A-Fa-f]{2}([:-])(?:[0-9A-Fa-f]{2}\1){4}[0-9A-Fa-f]{2}(?![\w:-])/g,
+  },
+  {
+    // A date is only a date of birth when the text says so. The finding is
+    // the date; the label stays in the text.
+    kind: "date_of_birth",
+    regex:
+      /(?<=\b(?:date of birth|dob|d\.o\.b\.?|birth ?date|birthday|born(?: on)?)\s*[:=#-]?\s*)(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})/gi,
+  },
+  {
+    // Indian national identity number: twelve digits, first digit 2 to 9,
+    // Verhoeff check digit. Printed in groups of four.
+    kind: "aadhaar",
+    regex: /\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b/g,
+    validate: validateVerhoeff,
+  },
+  {
+    // Indian permanent account number. The fourth letter encodes the holder
+    // type, which is what keeps ordinary ten-character codes out.
+    kind: "india_pan",
+    regex: /\b[A-Z]{3}[ABCFGHLJPTK][A-Z]\d{4}[A-Z]\b/g,
+  },
+  {
+    // UK National Insurance number, with the prefix rules HMRC publishes.
+    kind: "uk_nino",
+    regex:
+      /\b(?!BG|GB|NK|KN|TN|NT|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z] ?\d{2} ?\d{2} ?\d{2} ?[A-D]\b/g,
+  },
+  {
+    // NHS number: ten digits with a modulus-11 check digit. A ten-digit
+    // number is also a phone number, so the label is required as well.
+    kind: "nhs_number",
+    regex: /(?<=\bNHS(?: number| no\.?| #| num)?\s*[:#]?\s*)\d{3} ?\d{3} ?\d{4}\b/gi,
+    validate: validateNhsNumber,
+  },
+  {
+    // Passport numbers have no universal format, so the label is required
+    // and the value must carry at least one digit.
+    kind: "passport",
+    regex: /(?<=\bpassport(?: number| no\.?| #| num)?\s*[:#]?\s*)[A-Z0-9]{6,9}\b/gi,
+    validate: (value) => /\d/.test(value),
+  },
+  {
+    // A US routing number labelled as such, with the ABA checksum.
+    kind: "bank_account",
+    regex: /(?<=\b(?:routing|aba|rtn)(?: number| no\.?| #| transit)?\s*[:#]?\s*)\d{9}\b/gi,
+    validate: validateAba,
+  },
+  {
+    // An account number named by its label. Order and customer accounts take
+    // the same shape, so this is low precision and policy.sensitivity decides.
+    kind: "bank_account",
+    regex: /(?<=\b(?:bank )?account(?: number| no\.?| #| num)\s*[:#]?\s*)\d{8,17}\b/gi,
+    precision: "low",
+  },
+  {
+    // Ethereum-style and bech32 addresses have unmistakable shapes.
+    kind: "crypto_wallet",
+    regex: /\b(?:0x[0-9a-fA-F]{40}|bc1[qp][ac-hj-np-z02-9]{38,58})\b/g,
+  },
+  {
+    // Legacy base58 Bitcoin addresses look like any base58 identifier of the
+    // same length, so they are low precision.
+    kind: "crypto_wallet",
+    regex: /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g,
+    precision: "low",
+  },
+  {
+    // Vehicle identification number: seventeen characters without I, O, Q,
+    // and a transliterated weighted check digit in position nine.
+    kind: "vin",
+    regex: /\b[A-HJ-NPR-Z0-9]{17}\b/g,
+    validate: validateVin,
+  },
 ];
 
 // Detectors that run a local model. They are optional, may fail on a given
@@ -292,13 +386,25 @@ export function removeOverlaps(findings: Finding[]): Finding[] {
     "api_secret",
     "credit_card",
     "ssn",
+    "aadhaar",
+    "india_pan",
+    "uk_nino",
+    "nhs_number",
+    "passport",
+    "bank_account",
     "iban",
+    "crypto_wallet",
+    "vin",
     "email",
     "phone",
+    "ipv6",
     "ipv4",
+    "mac_address",
+    "date_of_birth",
     "confidential_term",
     "person_name",
     "physical_address",
+    "organization",
     "semantic_confidential",
   ];
   const winner = (a: Finding, b: Finding) =>
@@ -417,6 +523,118 @@ function validatePhone(value: string): boolean {
   const number = digits(value);
   const structured = value.startsWith("+") || /[ .()-]/.test(value);
   return structured && number.length >= 8 && number.length <= 15;
+}
+
+function validateIpv6(raw: string): boolean {
+  const value = raw.startsWith("[") ? raw.slice(1, -1) : raw;
+  if (value.length < 2 || value.length > 45) return false;
+  const doubleColon = value.split("::").length - 1;
+  if (doubleColon > 1) return false;
+  let groups = value.split(":");
+  let hexGroupsNeeded = 8;
+  const last = groups[groups.length - 1] ?? "";
+  if (last.includes(".")) {
+    if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(last) || !validateIpv4(last)) return false;
+    groups = groups.slice(0, -1);
+    hexGroupsNeeded = 6;
+  }
+  const nonEmpty = groups.filter((group) => group !== "");
+  if (!nonEmpty.every((group) => /^[0-9A-Fa-f]{1,4}$/.test(group))) return false;
+  if (doubleColon === 1) return nonEmpty.length < hexGroupsNeeded;
+  return nonEmpty.length === hexGroupsNeeded && groups.length === hexGroupsNeeded;
+}
+
+const VERHOEFF_D = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  [1, 2, 3, 4, 0, 6, 7, 8, 9, 5],
+  [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+  [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
+  [4, 0, 1, 2, 3, 9, 5, 6, 7, 8],
+  [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
+  [6, 5, 9, 8, 7, 1, 0, 4, 3, 2],
+  [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
+  [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
+  [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+];
+const VERHOEFF_P = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
+  [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+  [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+  [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
+  [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+  [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
+  [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
+];
+
+export function validateVerhoeff(value: string): boolean {
+  const number = digits(value);
+  if (number.length !== 12 || /^(\d)\1+$/.test(number)) return false;
+  let check = 0;
+  const reversed = [...number].reverse();
+  for (const [index, char] of reversed.entries()) {
+    check = VERHOEFF_D[check]![VERHOEFF_P[index % 8]![Number(char)]!]!;
+  }
+  return check === 0;
+}
+
+export function validateNhsNumber(value: string): boolean {
+  const number = digits(value);
+  if (number.length !== 10 || /^(\d)\1+$/.test(number)) return false;
+  let sum = 0;
+  for (let index = 0; index < 9; index++) sum += Number(number[index]) * (10 - index);
+  let check = 11 - (sum % 11);
+  if (check === 11) check = 0;
+  if (check === 10) return false;
+  return check === Number(number[9]);
+}
+
+export function validateAba(value: string): boolean {
+  const number = digits(value);
+  if (number.length !== 9 || /^(\d)\1+$/.test(number)) return false;
+  const d = [...number].map(Number);
+  const sum = 3 * (d[0]! + d[3]! + d[6]!) + 7 * (d[1]! + d[4]! + d[7]!) + (d[2]! + d[5]! + d[8]!);
+  return sum % 10 === 0;
+}
+
+const VIN_WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+const VIN_LETTERS: Record<string, number> = {
+  A: 1,
+  B: 2,
+  C: 3,
+  D: 4,
+  E: 5,
+  F: 6,
+  G: 7,
+  H: 8,
+  J: 1,
+  K: 2,
+  L: 3,
+  M: 4,
+  N: 5,
+  P: 7,
+  R: 9,
+  S: 2,
+  T: 3,
+  U: 4,
+  V: 5,
+  W: 6,
+  X: 7,
+  Y: 8,
+  Z: 9,
+};
+
+export function validateVin(value: string): boolean {
+  if (!/[A-Z]/.test(value) || !/\d/.test(value)) return false;
+  let sum = 0;
+  for (const [index, char] of [...value].entries()) {
+    const numeric = /\d/.test(char) ? Number(char) : VIN_LETTERS[char];
+    if (numeric === undefined) return false;
+    sum += numeric * VIN_WEIGHTS[index]!;
+  }
+  const remainder = sum % 11;
+  const expected = remainder === 10 ? "X" : String(remainder);
+  return value[8] === expected;
 }
 
 function validateIban(value: string): boolean {

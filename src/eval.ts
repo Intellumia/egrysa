@@ -48,9 +48,18 @@ for (const row of rows) {
   const policy = decide(findings, null, config);
   if (policy.decision === row.expectedDecision) correctDecisions++;
   if (
-    ["credit_card", "private_key", "api_secret", "ssn"].some((kind) =>
-      row.expectedKinds.includes(kind as FindingKind)
-    ) && policy.decision !== "deny"
+    [
+      "credit_card",
+      "private_key",
+      "api_secret",
+      "ssn",
+      "aadhaar",
+      "india_pan",
+      "uk_nino",
+      "nhs_number",
+      "passport",
+      "bank_account",
+    ].some((kind) => row.expectedKinds.includes(kind as FindingKind)) && policy.decision !== "deny"
   ) highSeverityLeaks++;
   if (policy.decision === "transform") {
     transformCases++;

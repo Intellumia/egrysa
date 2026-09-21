@@ -11,6 +11,21 @@ export const FINDING_KINDS = [
   "person_name",
   "physical_address",
   "semantic_confidential",
+  // Added in 0.1.0-alpha.5. Every kind needs exactly one policy action, so a
+  // configuration written for an earlier release must list these before it
+  // starts; the startup error names the missing kind.
+  "ipv6",
+  "mac_address",
+  "date_of_birth",
+  "aadhaar",
+  "india_pan",
+  "uk_nino",
+  "nhs_number",
+  "passport",
+  "bank_account",
+  "crypto_wallet",
+  "vin",
+  "organization",
 ] as const;
 
 export type FindingKind = typeof FINDING_KINDS[number];
@@ -92,7 +107,7 @@ export interface SemanticDetectorConfig {
   kinds?: SemanticFindingKind[];
 }
 
-export const NER_FINDING_KINDS = ["person_name", "physical_address"] as const;
+export const NER_FINDING_KINDS = ["person_name", "physical_address", "organization"] as const;
 
 export type NerFindingKind = typeof NER_FINDING_KINDS[number];
 
