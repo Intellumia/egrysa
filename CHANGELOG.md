@@ -7,6 +7,9 @@ public tag.
 
 ### Added
 
+- `deno task smoke:cloud`: opt-in live checks for Azure OpenAI, Bedrock, and Vertex AI through the
+  whole gateway (transform out, recompose back, receipt verifies with completed egress, streaming
+  ends with `[DONE]`), each skipped unless its credentials and endpoint details are in `.env.local`.
 - Evaluation kit. `eval-kit/quickstart.sh` installs a private copy of the pinned Deno if none is
   present, generates local-only keys, starts the stub provider and the gateway, runs the Phase 1
   probes (`eval-kit/smoke.sh`: discovery, authentication, transform with a provider-side check,
