@@ -135,6 +135,7 @@ Recorded results:
 | `v0.1.0-alpha.3` | 2026-08-09 | 7 of 7 checks passed, using the pre-move signer identity                                                 |
 | `v0.1.0-alpha.4` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release |
 | `v0.1.0-alpha.5` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release |
+| `v0.1.0-alpha.6` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release |
 
 The signed checksum bundle makes the retained files independently verifiable even if a registry or
 API later stops indexing an attached artifact. The registry checks additionally prove that the
