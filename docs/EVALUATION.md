@@ -78,6 +78,25 @@ prompts, quantizations, model versions, or organizations. The physical-address f
 interactive latency demonstrate why semantic findings remain low precision, off by default, and
 unable to hard-deny a request by themselves.
 
+## Reference NER detector evidence
+
+Measured 2026-09-21 on an Apple M4, CPU only, through the adapter in `src/ner.ts` against the
+reference sidecar in `tools/ner_sidecar/` running `urchade/gliner_multi_pii-v1` at revision
+`1fcf13e8`, `minConfidence` 0.5:
+
+| Live NER metric                     |      Result |
+| ----------------------------------- | ----------: |
+| Cases                               |          18 |
+| Person-name precision / recall      | 1.00 / 1.00 |
+| Physical-address precision / recall | 1.00 / 1.00 |
+| Negative-case false-positive rate   |           0 |
+| p95 added latency                   |     49.5 ms |
+| Detector failures                   |           0 |
+
+With the detector enabled the realistic scenario corpus scores 66/67 (the miss is IPv6) with no
+false positives, and a request through the gateway to the stub provider carrying a name, an address,
+and an email address left the boundary with all three surrogated at 43 ms p50.
+
 ## Runtime evidence
 
 The unit/integration suite, acceptance suite, synthetic-v2, adversarial, and scenario results, and
