@@ -70,7 +70,9 @@ a restrictive network policy.
 Core dumps and swap, neither of which is disabled or encrypted by this project. A cluster or node
 administrator, who is out of scope above. Theft of the receipt signing key, which allows an attacker
 to mint receipts that verify; while the key is held in software, receipt integrity is only as strong
-as the host. KMS or HSM custody is a roadmap item precisely because of this.
+as the host. `receiptSigner.kind = remote` moves the key into a signing service (HSM, Vault Transit,
+or a KMS adapter) so the gateway holds only the public key; the service then becomes the custody
+boundary and must be hardened and audited as such.
 
 **What is detectable afterwards.** Receipts are hash-chained and sequenced, so rewriting or removing
 history is detectable **provided signed checkpoints have been retained outside the gateway**. That

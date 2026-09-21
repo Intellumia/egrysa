@@ -1,13 +1,16 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: egrysa
   labels:
     app.kubernetes.io/name: egrysa
 spec:
-  # One replica, one PVC, one chain. For several replicas use statefulset.yaml, which gives each
-  # replica its own volume and its own receipt chain (EGRYSA_RECEIPT_CHAIN_SUFFIX = pod name).
-  replicas: 1
+  # Each replica gets its own volume from the claim template and its own receipt chain, named
+  # <receiptChainId>.<pod name>. Ship receipts and checkpoints with evidence export so every chain
+  # is anchored off the pod, and read receipts through the export sink rather than a replica.
+  replicas: 2
+  serviceName: egrysa
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app.kubernetes.io/name: egrysa
@@ -42,6 +45,9 @@ spec:
           env:
             - name: EGRYSA_CONFIG
               value: /app/config/egrysa.json
+            - name: EGRYSA_RECEIPT_CHAIN_SUFFIX
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
             - name: EGRYSA_INBOUND_KEYS
               valueFrom:
                 secretKeyRef: { name: egrysa-secrets, key: EGRYSA_INBOUND_KEYS }
@@ -82,8 +88,6 @@ spec:
       volumes:
         - name: config
           configMap: { name: egrysa-config }
-        - name: receipts
-          persistentVolumeClaim: { claimName: egrysa-receipts }
         - name: tmp
           emptyDir: { medium: Memory, sizeLimit: 16Mi }
       topologySpreadConstraints:
@@ -93,3 +97,11 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: egrysa
+  volumeClaimTemplates:
+    - metadata:
+        name: receipts
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

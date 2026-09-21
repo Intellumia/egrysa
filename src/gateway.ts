@@ -30,6 +30,7 @@ import {
 import { ReceiptStore } from "./receipts.ts";
 import { Exporter, resolveExportConfig } from "./export.ts";
 import { looksLikeJwt, OidcVerifier, resolveOidcConfig } from "./oidc.ts";
+import { createReceiptSigner, SigningError } from "./signer.ts";
 import { observeResponseText, scanResponse, UNSCANNED } from "./response.ts";
 import { createDetectors } from "./classifier.ts";
 import { recomposeOpenAiStream, RecompositionError } from "./streaming.ts";
@@ -105,16 +106,22 @@ export class Gateway {
     // store's checkpoints; the store's commit hook reaches it through a
     // closure so the order of construction does not matter to callers.
     let exporter: Exporter | null = null;
+    const publicKeySpki = Deno.env.get("EGRYSA_RECEIPT_ED25519_PUBLIC_KEY") ?? "";
+    const chain = replicaChain(config.receiptChainId, config.receiptLogPath);
     const gateway = new Gateway(
       config,
       auth,
       await ReceiptStore.open({
         onCommitted: (receipt) => exporter?.receipt(receipt),
         fingerprintKey: Deno.env.get("EGRYSA_RECEIPT_FINGERPRINT_KEY") ?? "",
-        privateKeyPkcs8: Deno.env.get("EGRYSA_RECEIPT_ED25519_PRIVATE_KEY") ?? "",
-        publicKeySpki: Deno.env.get("EGRYSA_RECEIPT_ED25519_PUBLIC_KEY") ?? "",
-        chainId: config.receiptChainId,
-        logPath: config.receiptLogPath,
+        signer: await createReceiptSigner(
+          config.receiptSigner,
+          Deno.env.get("EGRYSA_RECEIPT_ED25519_PRIVATE_KEY") ?? "",
+          publicKeySpki,
+        ),
+        publicKeySpki,
+        chainId: chain.chainId,
+        logPath: chain.logPath,
         capacity: config.receiptCapacity,
         maxLogBytes: config.receiptMaxLogBytes ?? 64 * 1024 * 1024,
       }),
@@ -532,6 +539,14 @@ export class Gateway {
       if (error instanceof RequestError) {
         return problem(error.status, "invalid_request", error.message);
       }
+      if (error instanceof SigningError) {
+        console.error(JSON.stringify({ level: "error", event: "receipt_signing_failed" }));
+        return problem(
+          503,
+          "receipt_unavailable",
+          "The receipt signer is unavailable; the request was not forwarded.",
+        );
+      }
       if (providerInvocationFailed) {
         this.metrics.providerErrors++;
         return problem(
@@ -659,6 +674,27 @@ export class Gateway {
       detectorDegraded: inspection.detectorDegraded,
     };
   }
+}
+
+// With several replicas, each one owns a chain and a log file. The suffix
+// comes from the environment (a pod name, for instance) so one configuration
+// serves every replica; exported checkpoints anchor each chain separately.
+function replicaChain(chainId: string, logPath: string): { chainId: string; logPath: string } {
+  const suffix = Deno.env.get("EGRYSA_RECEIPT_CHAIN_SUFFIX");
+  if (!suffix) return { chainId, logPath };
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(suffix)) {
+    throw new Error("EGRYSA_RECEIPT_CHAIN_SUFFIX must be a stable identifier");
+  }
+  const suffixed = `${chainId}.${suffix}`;
+  if (suffixed.length > 128) throw new Error("receiptChainId with its suffix is too long");
+  const dot = logPath.lastIndexOf(".");
+  const slash = logPath.lastIndexOf("/");
+  const path = logPath === ":memory:"
+    ? logPath
+    : dot > slash + 1
+    ? `${logPath.slice(0, dot)}.${suffix}${logPath.slice(dot)}`
+    : `${logPath}.${suffix}`;
+  return { chainId: suffixed, logPath: path };
 }
 
 class RequestError extends Error {
