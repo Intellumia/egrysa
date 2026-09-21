@@ -19,11 +19,28 @@ const OPENAI_COMPATIBLE_CAPABILITIES: ProviderCapabilities = {
   stream_options: true,
 };
 
+const ANTHROPIC_CAPABILITIES: ProviderCapabilities = {
+  temperature: true,
+  max_tokens: true,
+  seed: false,
+  top_p: false,
+  frequency_penalty: false,
+  presence_penalty: false,
+  tools: true,
+  tool_choice: true,
+  parallel_tool_calls: false,
+  stream: true,
+  stream_options: true,
+};
+
 export const PROVIDER_CAPABILITY_TABLE: Readonly<
   Record<ProviderConfig["kind"], Readonly<ProviderCapabilities>>
 > = {
   openai: OPENAI_COMPATIBLE_CAPABILITIES,
   "openai-compatible": OPENAI_COMPATIBLE_CAPABILITIES,
+  "azure-openai": OPENAI_COMPATIBLE_CAPABILITIES,
+  bedrock: ANTHROPIC_CAPABILITIES,
+  vertex: ANTHROPIC_CAPABILITIES,
   anthropic: {
     temperature: true,
     max_tokens: true,

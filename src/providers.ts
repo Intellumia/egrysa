@@ -1,5 +1,12 @@
 import type { ChatMessage, ChatRequest, ProviderConfig, ToolCall } from "./types.ts";
+import { bedrockStreamToSse } from "./aws_eventstream.ts";
 import { BodySizeLimitError, readBoundedText } from "./bounded.ts";
+import {
+  awsEncodeSegment,
+  googleAccessToken,
+  type GoogleServiceAccount,
+  signAwsRequest,
+} from "./cloud_auth.ts";
 import { prepareProviderRequest, ProviderCapabilityError } from "./provider_capabilities.ts";
 
 const DEFAULT_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
@@ -44,17 +51,24 @@ export async function invokeProvider(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    if (provider.kind === "anthropic") {
+    if (
+      provider.kind === "anthropic" || provider.kind === "bedrock" || provider.kind === "vertex"
+    ) {
       if (effectiveRequest.stream) {
         const upstream = await invokeAnthropicStream(
           provider,
           effectiveRequest,
           controller.signal,
         );
+        // Bedrock frames its stream in a binary envelope; the others speak
+        // text/event-stream already.
+        const sse = provider.kind === "bedrock"
+          ? bedrockStreamToSse(upstream.body!)
+          : upstream.body!;
         return {
           type: "stream",
           response: translateAnthropicStream(
-            upstream.body!,
+            sse,
             effectiveRequest.model,
             effectiveRequest.stream_options?.include_usage,
           ),
@@ -105,18 +119,26 @@ async function invokeOpenAiCompatible(
   if (!provider.local && !key) {
     throw new ProviderError(`credential unavailable for provider ${provider.id}`, 503);
   }
-  if (key) headers.set("authorization", `Bearer ${key}`);
   const body = sanitizeOpenAiRequest(request);
-  const response = await fetch(
-    `${provider.baseUrl.replace(/\/$/, "")}/v1/chat/completions`.replace("/v1/v1/", "/v1/"),
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal,
-      redirect: "error",
-    },
-  );
+  let url = `${provider.baseUrl.replace(/\/$/, "")}/v1/chat/completions`.replace("/v1/v1/", "/v1/");
+  if (provider.kind === "azure-openai") {
+    // Azure addresses a deployment, authenticates with api-key, and does not
+    // accept the store field the public API does.
+    if (key) headers.set("api-key", key);
+    url = `${provider.baseUrl.replace(/\/$/, "")}/openai/deployments/${
+      encodeURIComponent(provider.deployment ?? "")
+    }/chat/completions?api-version=${encodeURIComponent(provider.apiVersion ?? "")}`;
+    delete body.store;
+  } else if (key) {
+    headers.set("authorization", `Bearer ${key}`);
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal,
+    redirect: "error",
+  });
   if (request.stream) {
     if (!response.ok || !response.body) {
       await throwProviderResponse(response);
@@ -128,12 +150,20 @@ async function invokeOpenAiCompatible(
 
 // One request shape for both the buffered and the streaming path, so the two
 // cannot drift in what they send upstream.
-function anthropicRequestBody(request: ChatRequest, stream: boolean): Record<string, unknown> {
+function anthropicRequestBody(
+  request: ChatRequest,
+  stream: boolean,
+  kind: ProviderConfig["kind"] = "anthropic",
+): Record<string, unknown> {
   const system = request.messages.filter((message) => message.role === "system").map((message) =>
     message.content
   ).join("\n\n");
   return {
-    model: request.model,
+    // Bedrock and Vertex name the model in the URL and carry a platform
+    // version in the body instead.
+    ...(kind === "anthropic" ? { model: request.model } : {}),
+    ...(kind === "bedrock" ? { anthropic_version: "bedrock-2023-05-31" } : {}),
+    ...(kind === "vertex" ? { anthropic_version: "vertex-2023-10-16" } : {}),
     messages: toAnthropicMessages(request.messages),
     ...(system ? { system } : {}),
     max_tokens: request.max_tokens ?? 1024,
@@ -150,8 +180,92 @@ function anthropicRequestBody(request: ChatRequest, stream: boolean): Record<str
       }
       : {}),
     ...anthropicToolChoice(request.tool_choice),
-    ...(stream ? { stream: true } : {}),
+    // Bedrock selects streaming by endpoint, not by field.
+    ...(stream && kind !== "bedrock" ? { stream: true } : {}),
   };
+}
+
+// Where an Anthropic-shaped request goes and how it authenticates, per kind.
+async function anthropicEndpoint(
+  provider: ProviderConfig,
+  request: ChatRequest,
+  stream: boolean,
+  body: string,
+  signal: AbortSignal,
+): Promise<{ url: string; headers: Headers }> {
+  const base = provider.baseUrl.replace(/\/$/, "");
+  if (provider.kind === "bedrock") {
+    const url = new URL(
+      `${base}/model/${awsEncodeSegment(request.model)}/${
+        stream ? "invoke-with-response-stream" : "invoke"
+      }`,
+    );
+    const key = provider.apiKeyEnv ? Deno.env.get(provider.apiKeyEnv) : undefined;
+    if (key) {
+      return {
+        url: url.toString(),
+        headers: new Headers({
+          "content-type": "application/json",
+          authorization: `Bearer ${key}`,
+        }),
+      };
+    }
+    const names = provider.credentialsEnv;
+    const accessKeyId = names ? Deno.env.get(names.accessKeyId) : undefined;
+    const secretAccessKey = names ? Deno.env.get(names.secretAccessKey) : undefined;
+    if (!provider.local && (!accessKeyId || !secretAccessKey)) {
+      throw new ProviderError(`credential unavailable for provider ${provider.id}`, 503);
+    }
+    if (!accessKeyId || !secretAccessKey) {
+      return { url: url.toString(), headers: new Headers({ "content-type": "application/json" }) };
+    }
+    const sessionToken = names?.sessionToken ? Deno.env.get(names.sessionToken) : undefined;
+    const headers = await signAwsRequest(
+      "POST",
+      url,
+      body,
+      { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) },
+      provider.region ?? "",
+      "bedrock",
+    );
+    return { url: url.toString(), headers };
+  }
+  if (provider.kind === "vertex") {
+    const url = `${base}/v1/projects/${encodeURIComponent(provider.project ?? "")}/locations/${
+      encodeURIComponent(provider.region ?? "")
+    }/publishers/anthropic/models/${encodeURIComponent(request.model)}:${
+      stream ? "streamRawPredict" : "rawPredict"
+    }`;
+    let token = provider.apiKeyEnv ? Deno.env.get(provider.apiKeyEnv) : undefined;
+    if (!token && provider.serviceAccountEnv) {
+      const raw = Deno.env.get(provider.serviceAccountEnv);
+      if (raw) {
+        let account: GoogleServiceAccount;
+        try {
+          account = JSON.parse(raw) as GoogleServiceAccount;
+        } catch {
+          throw new ProviderError(`service account for provider ${provider.id} is not JSON`, 503);
+        }
+        try {
+          token = await googleAccessToken(account, provider.tokenUrl ?? account.token_uri, signal);
+        } catch (error) {
+          throw new ProviderError(
+            `token exchange failed for provider ${provider.id}: ${
+              error instanceof Error ? error.message : "unknown"
+            }`,
+            503,
+          );
+        }
+      }
+    }
+    if (!provider.local && !token) {
+      throw new ProviderError(`credential unavailable for provider ${provider.id}`, 503);
+    }
+    const headers = new Headers({ "content-type": "application/json" });
+    if (token) headers.set("authorization", `Bearer ${token}`);
+    return { url, headers };
+  }
+  return { url: `${base}/v1/messages`, headers: anthropicHeaders(provider) };
 }
 
 function anthropicHeaders(provider: ProviderConfig): Headers {
@@ -169,13 +283,9 @@ async function invokeAnthropicStream(
   request: ChatRequest,
   signal: AbortSignal,
 ): Promise<Response> {
-  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/v1/messages`, {
-    method: "POST",
-    headers: anthropicHeaders(provider),
-    body: JSON.stringify(anthropicRequestBody(request, true)),
-    signal,
-    redirect: "error",
-  });
+  const body = JSON.stringify(anthropicRequestBody(request, true, provider.kind));
+  const { url, headers } = await anthropicEndpoint(provider, request, true, body, signal);
+  const response = await fetch(url, { method: "POST", headers, body, signal, redirect: "error" });
   if (!response.ok || !response.body) await throwProviderResponse(response);
   return response;
 }
@@ -186,13 +296,9 @@ async function invokeAnthropic(
   signal: AbortSignal,
   maxResponseBytes: number,
 ): Promise<Record<string, unknown>> {
-  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/v1/messages`, {
-    method: "POST",
-    headers: anthropicHeaders(provider),
-    body: JSON.stringify(anthropicRequestBody(request, false)),
-    signal,
-    redirect: "error",
-  });
+  const body = JSON.stringify(anthropicRequestBody(request, false, provider.kind));
+  const { url, headers } = await anthropicEndpoint(provider, request, false, body, signal);
+  const response = await fetch(url, { method: "POST", headers, body, signal, redirect: "error" });
   const raw = await parseProviderResponse(response, maxResponseBytes);
   const blocks = Array.isArray(raw.content) ? raw.content as Array<Record<string, unknown>> : [];
   const content = blocks.filter((block) => block.type === "text").map((block) =>

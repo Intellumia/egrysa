@@ -42,7 +42,14 @@ const SURROGATE_TOKENS = ["__EGRYSA_PII_0__", "__EGRYSA_EMAIL_0001_abc123__"];
 export function renderProviderSupportMatrix(
   reports: Partial<Record<ProviderConfig["kind"], string>> = {},
 ): string {
-  const kinds: ProviderConfig["kind"][] = ["openai", "openai-compatible", "anthropic"];
+  const kinds: ProviderConfig["kind"][] = [
+    "openai",
+    "openai-compatible",
+    "azure-openai",
+    "anthropic",
+    "bedrock",
+    "vertex",
+  ];
   const rows = kinds.map((kind): string[] => {
     const capabilities = PROVIDER_CAPABILITY_TABLE[kind];
     const tuningGaps = [
@@ -211,11 +218,11 @@ async function responseFormatProbe(
   model: string,
   timeoutMs: number,
 ): Promise<ConformanceReport["wire"]["responseFormat"]> {
-  if (provider.kind === "anthropic") {
+  if (provider.kind === "anthropic" || provider.kind === "bedrock" || provider.kind === "vertex") {
     return {
       passed: true,
       support: "unsupported",
-      detail: "Anthropic adapter does not expose the OpenAI response_format field",
+      detail: "Anthropic-shaped adapters do not expose the OpenAI response_format field",
     };
   }
   const headers = new Headers({ "content-type": "application/json" });
