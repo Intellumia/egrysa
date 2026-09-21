@@ -10,8 +10,9 @@
 - Egress proxy or firewall restricted to approved provider hosts and regions.
 - Encrypted nodes, swap and core dumps disabled, restricted debug access, and runtime detection.
 - Local inference capacity if any taxonomy class is `local_only`.
-- Externally retained signed checkpoints and HSM/KMS signing before receipts are treated as
-  independently anchored audit evidence.
+- Externally retained signed checkpoints (evidence export) and a remote signer holding the receipt
+  key outside the gateway (`receiptSigner`) before receipts are treated as independently anchored
+  audit evidence.
 
 The JSONL receipt chain fsyncs every receipt before request handling continues and survives process
 restarts on durable storage, but it remains single-writer. Concurrent receipts share one fsync
@@ -19,9 +20,9 @@ restarts on durable storage, but it remains single-writer. Concurrent receipts s
 than being bounded by one fsync per request; a failed fsync faults the store until restart.
 `receiptMaxLogBytes` defaults to 64 MiB. At the limit, Egrysa renames the active log with its last
 sequence and starts a new log with a signed chain-head checkpoint; archived segments are not loaded
-at startup and need an operator retention policy. Run one replica until a consistency-aware
-sequencing backend exists. A holder of the software signing key can rewrite unanchored history, so
-retain signed checkpoints outside the gateway.
+at startup and need an operator retention policy. Each replica owns one chain; see High availability
+below for running several. A holder of the software signing key can rewrite unanchored history, so
+retain signed checkpoints outside the gateway and prefer a remote signer.
 
 If the active receipt path is missing or empty while sequence-suffixed archives exist, startup fails
 with an interrupted-rotation error. Do not delete the archives or start the same chain at
@@ -249,6 +250,54 @@ becomes the workload id that policy, per-workload overrides, rate limits, and re
 on, so it must be a valid workload id; if `roleClaim` lists `auditorRole`, the caller gets the
 read-only auditor role. An unverifiable token is an unauthenticated request, whatever the reason.
 The issuer host must be in the gateway's `--allow-net` list.
+
+## Receipt signing
+
+By default the gateway signs receipts with the Ed25519 private key in
+`EGRYSA_RECEIPT_ED25519_PRIVATE_KEY`. That is the weakest link in the evidence chain: anyone who can
+read the process environment can mint receipts that verify. A remote signer moves the key out of the
+process:
+
+```json
+{
+  "receiptSigner": {
+    "kind": "remote",
+    "url": "https://signer.internal/v1/sign",
+    "headersEnv": "EGRYSA_SIGNER_HEADERS",
+    "timeoutMs": 5000
+  }
+}
+```
+
+The gateway then holds only the public key. Each receipt hash and checkpoint is sent to the service,
+and the returned signature is verified against the public key before it is used, so a substituted or
+faulty service cannot make the gateway emit a receipt that does not verify. At startup the gateway
+signs a fixed probe and refuses to start if the service's key is not the published one.
+`EGRYSA_RECEIPT_ED25519_PRIVATE_KEY` must be unset in the gateway's environment when the signer is
+remote. A signing failure does not fault the store; the request fails closed with
+`503 receipt_unavailable` and is not forwarded, and the metric `request_failed` events name
+`receipt_signing_failed`. Put the signer host in `--allow-net`.
+
+The contract is one `POST` with `{"contractVersion":"1","algorithm":"Ed25519","keyId","message"}`
+(message base64 of the UTF-8 bytes) answered by `{"contractVersion":"1","keyId","signature"}`;
+`headersEnv` names an environment variable whose lines are `Name: value` headers for the service's
+own authentication. `deno task signer` runs the reference service (`tools/reference_signer.ts`) on
+127.0.0.1:11437 holding the key itself; it is the template for an adapter in front of an HSM,
+HashiCorp Vault Transit (which offers Ed25519), or a cloud KMS. AWS KMS and Google Cloud KMS do not
+offer Ed25519 natively, so an adapter there keeps the key in the KMS-backed secret store and signs
+in a separately hardened process; the gateway still never sees the key.
+
+## High availability
+
+Receipts are single-writer per chain, so each replica owns a chain. Set
+`EGRYSA_RECEIPT_CHAIN_SUFFIX` per replica (in Kubernetes, the pod name through a `fieldRef`) and the
+gateway appends it to `receiptChainId` and inserts it into the log file name, so one configuration
+serves every replica: chain `pilot.egrysa-0` in `receipts.egrysa-0.jsonl`. The suffix must be stable
+across restarts of that replica, which a StatefulSet guarantees;
+`deploy/kubernetes/statefulset.yaml` gives each replica its own volume and suffix. With several
+chains, configure evidence export so every chain's receipts and checkpoints are anchored off the
+pod, and read receipts from the export sink; `GET /v1/receipts/{id}` answers only on the replica
+that wrote the receipt. Rate limits stay per replica, as before.
 
 ## Rate limiting and roles
 
@@ -500,8 +549,9 @@ measure the local model without making live recall a release gate.
 `EGRYSA_INBOUND_KEYS` accepts comma-separated `workload_id=key` entries so an old and new key can
 overlap. Keep the workload ID stable, deploy both keys, move clients, then remove the old key.
 Rotate the receipt Ed25519 keypair only with a documented chain transition because prior receipts
-depend on the published public key. Rotate the independent fingerprint key under the same evidence
-procedure.
+depend on the published public key; with a remote signer the transition is the same, with the new
+key in the service and the new public key in the gateway's environment. Rotate the independent
+fingerprint key under the same evidence procedure.
 
 ## Incident response
 

@@ -167,6 +167,13 @@ export interface AppConfig {
   receiptLogPath: string;
   receiptMaxLogBytes?: number;
   receiptChainId: string;
+  // Where receipts are signed; local (default) or a remote signing service. See src/signer.ts.
+  receiptSigner?: { kind: "local" } | {
+    kind: "remote";
+    url: string;
+    headersEnv?: string;
+    timeoutMs?: number;
+  };
   providers: ProviderConfig[];
   semanticDetector?: SemanticDetectorConfig;
   nerDetector?: NerDetectorConfig;

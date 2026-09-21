@@ -16,6 +16,7 @@ import {
 } from "./types.ts";
 import { validateExportConfig } from "./export.ts";
 import { validateOidcConfig } from "./oidc.ts";
+import { validateReceiptSignerConfig } from "./signer.ts";
 import { PROVIDER_CAPABILITY_TABLE } from "./provider_capabilities.ts";
 
 const DEFAULT_PATH = "config/egrysa.example.json";
@@ -121,6 +122,7 @@ export function validateConfig(config: AppConfig): void {
   validateWorkloads(config);
   validateExportConfig(config);
   validateOidcConfig(config.oidc);
+  validateReceiptSignerConfig(config.receiptSigner);
   if (
     config.policy.sensitivity !== undefined &&
     !SENSITIVITIES.includes(config.policy.sensitivity)

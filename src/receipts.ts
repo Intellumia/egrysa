@@ -1,11 +1,5 @@
-import {
-  ed25519Sign,
-  ed25519Verify,
-  hmacSha256,
-  importEd25519PrivateKey,
-  importEd25519PublicKey,
-  sha256,
-} from "./crypto.ts";
+import { ed25519Verify, hmacSha256, importEd25519PublicKey, sha256 } from "./crypto.ts";
+import { createLocalSigner, type ReceiptSigner, signingKeyIdentifier } from "./signer.ts";
 import type {
   Decision,
   EgressOutcome,
@@ -34,7 +28,9 @@ export interface ReceiptStoreOptions {
   // Called after a receipt's commit has completed; never before durability.
   onCommitted?: (receipt: PrivacyReceipt) => void;
   fingerprintKey: string;
-  privateKeyPkcs8: string;
+  // Either a signer, or a private key from which a local signer is built.
+  signer?: ReceiptSigner;
+  privateKeyPkcs8?: string;
   publicKeySpki: string;
   chainId: string;
   logPath: string;
@@ -58,7 +54,7 @@ export class ReceiptStore {
 
   private constructor(
     private readonly options: ReceiptStoreOptions,
-    private readonly privateKey: CryptoKey,
+    private readonly signer: ReceiptSigner,
     private readonly publicKey: CryptoKey,
     readonly signingKeyId: string,
   ) {}
@@ -74,14 +70,13 @@ export class ReceiptStore {
       !Number.isInteger(options.maxLogBytes) || options.maxLogBytes < 1024 ||
       options.maxLogBytes > 1024 * 1024 * 1024
     ) throw new Error("receipt maxLogBytes must be between 1 KiB and 1 GiB");
-    const privateKey = await importEd25519PrivateKey(options.privateKeyPkcs8);
-    const publicKey = await importEd25519PublicKey(options.publicKeySpki);
-    const signingKeyId = await signingKeyIdentifier(options.publicKeySpki);
-    const proof = await ed25519Sign(privateKey, "egrysa/signing-key-pair-check/v1");
-    if (!await ed25519Verify(publicKey, proof, "egrysa/signing-key-pair-check/v1")) {
-      throw new Error("receipt Ed25519 public and private keys do not match");
+    const signer = options.signer ??
+      await createLocalSigner(options.privateKeyPkcs8 ?? "", options.publicKeySpki);
+    if (signer.publicKeySpki !== options.publicKeySpki) {
+      throw new Error("receipt signer does not hold the configured public key");
     }
-    const store = new ReceiptStore(options, privateKey, publicKey, signingKeyId);
+    const publicKey = await importEd25519PublicKey(options.publicKeySpki);
+    const store = new ReceiptStore(options, signer, publicKey, signer.keyId);
     await store.#load();
     await store.#openLog();
     return store;
@@ -149,7 +144,7 @@ export class ReceiptStore {
     };
     return {
       ...unsigned,
-      signature: await ed25519Sign(this.privateKey, JSON.stringify(unsigned)),
+      signature: await this.signer.sign(JSON.stringify(unsigned)),
     };
   }
 
@@ -220,7 +215,7 @@ export class ReceiptStore {
     const receipt = {
       ...unsigned,
       receiptHash,
-      signature: await ed25519Sign(this.privateKey, receiptHash),
+      signature: await this.signer.sign(receiptHash),
     } as PrivacyReceipt;
     const { durable } = await this.#append(receipt);
     this.#sequence = receipt.sequence;
@@ -464,10 +459,6 @@ export async function verifyReceipt(
   return receipt.signingKeyId === await signingKeyIdentifier(publicKeySpki) &&
     expectedHash === receipt.receiptHash &&
     await ed25519Verify(publicKey, receipt.signature, receipt.receiptHash);
-}
-
-async function signingKeyIdentifier(publicKeySpki: string): Promise<string> {
-  return (await sha256(`egrysa/ed25519-spki/v1\0${publicKeySpki}`)).slice(0, 24);
 }
 
 function unsignedReceipt(

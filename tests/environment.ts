@@ -21,6 +21,10 @@ export async function configureTestEnvironment(): Promise<{
   return keys;
 }
 
+export function testKeys(): Promise<{ privateKey: string; publicKey: string }> {
+  return createSigningKeys();
+}
+
 async function createSigningKeys(): Promise<{ privateKey: string; publicKey: string }> {
   const pair = await crypto.subtle.generateKey("Ed25519", true, [
     "sign",

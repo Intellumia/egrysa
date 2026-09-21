@@ -61,6 +61,9 @@ training settings are policy inputs that must be validated through contract and 
   per request or stable per workload through a keyed hash with nothing stored.
 - Opt-in prompt-injection detection through the same sidecar, as a low-precision blocked class so
   the sensitivity switch decides whether a flagged request is routed locally, refused, or held.
+- Receipt signing behind an interface: a local key, or a remote signing service that keeps the key
+  out of the gateway process, with every returned signature verified before use. Per-replica receipt
+  chains for multi-replica deployments, anchored through evidence export.
 - OpenID Connect bearer tokens from a configured issuer, verified on WebCrypto against the issuer's
   published keys, mapping a claim to the workload id and optionally to the auditor role, beside the
   static keys.

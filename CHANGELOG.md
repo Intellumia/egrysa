@@ -40,6 +40,14 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Remote receipt signing. `receiptSigner: { kind: "remote", url, headersEnv, timeoutMs }` sends each
+  receipt hash and checkpoint to a signing service and holds only the public key; every returned
+  signature is verified before use, a startup probe refuses a service with the wrong key, and a
+  signing failure fails the request closed with `503 receipt_unavailable` without faulting the
+  store. `deno task signer` runs the reference service (`tools/reference_signer.ts`).
+- Per-replica receipt chains. `EGRYSA_RECEIPT_CHAIN_SUFFIX` (the pod name in
+  `deploy/kubernetes/statefulset.yaml`) suffixes the chain id and the log file name so several
+  replicas share one configuration and each owns a chain anchored through evidence export.
 - OpenID Connect bearer tokens. With `oidc` configured, a bearer that matches no static key and has
   the shape of a JWT is verified against the issuer's JWKS (discovered or given), checked for
   issuer, audience, and time, and mapped through a claim to the workload id and optionally the
