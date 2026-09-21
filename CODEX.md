@@ -18,17 +18,16 @@ governed by product behavior and contract.
 
 ## Current state
 
-Built: OpenAI-compatible text ingress, native or emulated SSE streaming across the shipped provider
-adapters, explicit provider capability profiles and downgrade disclosure, bounded function-tool
-messages, model discovery, deterministic classification, an opt-in reference local semantic detector
-for person names, physical addresses, and semantically confidential content, policy routing, local
+Built: OpenAI-compatible text ingress, native SSE streaming across the shipped provider adapters,
+explicit provider capability profiles and downgrade disclosure, bounded function-tool messages,
+model discovery, deterministic classification, an opt-in reference local semantic detector for
+person names, physical addresses, and semantically confidential content, policy routing, local
 recomposition, durable Ed25519-signed attributed receipts, a provider conformance harness, tests,
 synthetic evals, CI, and hardened deployment examples.
 
 Not built: identity federation, tenant administration, multi-replica receipt sequencing, HSM
-signing, multimodal inspection, autonomous tool execution, native Anthropic streaming,
-cross-provider decomposition, provider-control verification, hardware appliance, or third-party
-certification.
+signing, multimodal inspection, autonomous tool execution, cross-provider decomposition,
+provider-control verification, hardware appliance, or third-party certification.
 
 ## Non-negotiable rules
 
