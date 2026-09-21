@@ -21,6 +21,16 @@ cases on an Apple M4, CPU only:
 The two remaining name false positives on that set were an unlabelled real name and a configured
 confidential term that overlap resolution assigns to `confidential_term` anyway.
 
+## Prompt-injection detection
+
+When a request asks for the `prompt_injection` kind, the sidecar loads a second classifier
+(`protectai/deberta-v3-base-prompt-injection-v2`, pinned) on first use and scores the text in
+overlapping windows; the finding is the highest-scoring window. Measured on the shipped cases: 8 of
+8 attacks caught, 2 of 10 benign prompts flagged, none of the 67 realistic scenario documents
+flagged, about 35 ms per window on CPU. It is low precision by design and the gateway treats it as
+such. `EGRYSA_INJECTION_MODEL`, `EGRYSA_INJECTION_MODEL_REVISION`, and `EGRYSA_INJECTION_THRESHOLD`
+(default 0.9) configure it.
+
 ## Run it
 
 ```sh

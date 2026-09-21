@@ -245,6 +245,12 @@ revision, `minConfidence` 0.5:
 | Adversarial corpus, `--config` with NER on  | 93/102, 0/19 false positives                                                                |
 | One request through the gateway to the stub | name, address, and email all surrogated; 43 ms p50 end to end                               |
 
+With `prompt_injection` added to `nerDetector.kinds`, a second classifier in the same sidecar scores
+each request. On the shipped injection cases (`deno task eval:injection`, 8 attacks and 10 benign
+prompts) it caught 8 of 8 and flagged 2 of 10 benign prompts; on the 67 realistic scenario documents
+it flagged none. The finding is low precision, sits in `blockKinds`, and follows
+`policy.sensitivity` like any other low-precision blocked finding.
+
 The sidecar filters the model's candidates before answering: a name must be two to four capitalised
 tokens with no digits and no role noun ("the patient", "staff member"), and an address must carry a
 digit and at least three tokens. Without that filter the same model recalls everything and fires on

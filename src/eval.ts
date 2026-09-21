@@ -59,6 +59,7 @@ for (const row of rows) {
       "nhs_number",
       "passport",
       "bank_account",
+      "prompt_injection",
     ].some((kind) => row.expectedKinds.includes(kind as FindingKind)) && policy.decision !== "deny"
   ) highSeverityLeaks++;
   if (policy.decision === "transform") {
