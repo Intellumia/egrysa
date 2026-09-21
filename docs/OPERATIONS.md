@@ -129,6 +129,43 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Evidence export
+
+Receipts, chain checkpoints, and content-free events can be shipped to a SIEM or an OpenTelemetry
+collector, so the evidence lives somewhere the gateway cannot alter.
+
+```json
+{
+  "export": {
+    "url": "https://siem.internal/services/collector/raw",
+    "format": "jsonl",
+    "headersEnv": "EGRYSA_EXPORT_HEADERS",
+    "batchSize": 100,
+    "flushIntervalMs": 2000,
+    "queueCapacity": 10000,
+    "checkpointEveryReceipts": 1000
+  }
+}
+```
+
+- `format: jsonl` posts newline-delimited JSON, one record per line with a `record` field of
+  `receipt`, `checkpoint`, or `event`; Splunk HEC raw endpoints and most log pipelines accept it.
+  `format: otlp` posts an OTLP/HTTP JSON `ExportLogsServiceRequest` in which each record is a log
+  record whose attributes are the record's scalar fields and whose body is the signed document.
+- `headersEnv` names an environment variable holding header lines (`Name: value`, one per line), so
+  a collector token never appears in the configuration file. The shipped tasks and container allow
+  `EGRYSA_EXPORT_HEADERS`.
+- The URL must be HTTPS (loopback HTTP is allowed for a local collector) and the host must be in the
+  gateway's `--allow-net` list.
+
+Delivery never blocks a request. Records queue in memory, go out in batches, are retried with
+backoff up to a minute apart, and are dropped oldest-first when the queue is full; the drop is
+counted in `egrysa_export_dropped_total`, with `egrysa_export_sent_total`,
+`egrysa_export_failed_batches_total`, and `egrysa_export_queued` beside it. A signed checkpoint is
+exported every `checkpointEveryReceipts` receipts and at shutdown, so a gap in the export can be
+reconciled against the receipt log, which remains the primary record. Exported receipts verify with
+`/v1/receipts/public-key` exactly as local ones do.
+
 ## Cloud-hosted providers
 
 Three further provider kinds sit beside `openai`, `anthropic`, and `openai-compatible`. Each is

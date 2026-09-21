@@ -54,6 +54,9 @@ training settings are policy inputs that must be validated through contract and 
   endpoint for person names, physical addresses, and semantically confidential content. It is
   best-effort; measured evidence is in [EVALUATION.md](docs/EVALUATION.md).
 - Four decisions: `deny`, `local_only`, `transform`, and explicitly approved `allow_raw`.
+- Evidence export: signed receipts, chain checkpoints, and content-free events shipped to a SIEM as
+  JSON lines or to an OpenTelemetry collector as OTLP logs, batched, retried, bounded, and never in
+  a request's path.
 - Surrogate style and scope by policy: sentinel tokens or format-preserving synthetic values, fresh
   per request or stable per workload through a keyed hash with nothing stored.
 - Opt-in prompt-injection detection through the same sidecar, as a low-precision blocked class so

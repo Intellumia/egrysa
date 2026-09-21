@@ -28,6 +28,7 @@ import {
   type ProviderInvocation,
 } from "./providers.ts";
 import { ReceiptStore } from "./receipts.ts";
+import { Exporter, resolveExportConfig } from "./export.ts";
 import { observeResponseText, scanResponse, UNSCANNED } from "./response.ts";
 import { createDetectors } from "./classifier.ts";
 import { recomposeOpenAiStream, RecompositionError } from "./streaming.ts";
@@ -44,6 +45,13 @@ export class Gateway {
   readonly metrics = new Metrics();
   private readonly pendingReviews = new Set<string>();
   private readonly limiter = new RateLimiter();
+  private exporter: Exporter | null = null;
+
+  // Content-free events go to the log and, when configured, to the sink.
+  private record(body: Record<string, unknown>): void {
+    console.error(JSON.stringify(body));
+    this.exporter?.event(body);
+  }
 
   // A hold is cleared by naming the receipt this gateway issued for it, so an
   // acknowledgement cannot be forged by sending an arbitrary header value.
@@ -80,10 +88,15 @@ export class Gateway {
         }));
       }
     }
-    return new Gateway(
+    // The exporter is attached after the store exists because it anchors the
+    // store's checkpoints; the store's commit hook reaches it through a
+    // closure so the order of construction does not matter to callers.
+    let exporter: Exporter | null = null;
+    const gateway = new Gateway(
       config,
       auth,
       await ReceiptStore.open({
+        onCommitted: (receipt) => exporter?.receipt(receipt),
         fingerprintKey: Deno.env.get("EGRYSA_RECEIPT_FINGERPRINT_KEY") ?? "",
         privateKeyPkcs8: Deno.env.get("EGRYSA_RECEIPT_ED25519_PRIVATE_KEY") ?? "",
         publicKeySpki: Deno.env.get("EGRYSA_RECEIPT_ED25519_PUBLIC_KEY") ?? "",
@@ -93,10 +106,17 @@ export class Gateway {
         maxLogBytes: config.receiptMaxLogBytes ?? 64 * 1024 * 1024,
       }),
     );
+    const settings = resolveExportConfig(config);
+    if (settings) {
+      exporter = new Exporter(settings, () => gateway.receipts.checkpoint());
+      gateway.exporter = exporter;
+    }
+    return gateway;
   }
 
-  close(): Promise<void> {
-    return this.receipts.close();
+  async close(): Promise<void> {
+    await this.exporter?.close();
+    await this.receipts.close();
   }
 
   async handle(request: Request): Promise<Response> {
@@ -162,6 +182,12 @@ export class Gateway {
       return problem(401, "unauthorized", "A valid gateway bearer token is required.");
     }
     if (request.method === "GET" && url.pathname === "/metrics") {
+      if (this.exporter) {
+        this.metrics.exportSent = this.exporter.stats.sent;
+        this.metrics.exportDropped = this.exporter.stats.dropped;
+        this.metrics.exportFailedBatches = this.exporter.stats.failedBatches;
+        this.metrics.exportQueued = this.exporter.stats.queued;
+      }
       return new Response(this.metrics.render(), {
         headers: { "content-type": "text/plain; version=0.0.4", ...securityHeaders() },
       });
@@ -201,6 +227,7 @@ export class Gateway {
       const waitMs = this.limiter.take(workloadId, limit);
       if (waitMs > 0) {
         this.metrics.rateLimited++;
+        this.exporter?.event({ level: "info", event: "rate_limited", workloadId });
         const response = problem(
           429,
           "rate_limited",
@@ -555,12 +582,12 @@ export class Gateway {
       const total = Object.values(counts).reduce<number>((sum, n) => sum + (n ?? 0), 0);
       if (total === 0) return;
       this.metrics.responseFindings += total;
-      console.error(JSON.stringify({
+      this.record({
         level: "warn",
         event: "stream_response_findings",
         receiptId,
         findingCounts: counts,
-      }));
+      });
     } catch {
       // Observation is best effort; a detector failure here changes nothing
       // the caller already received.
@@ -596,12 +623,12 @@ export class Gateway {
         execution.failureClass,
       );
       if (execution.failureClass !== undefined) {
-        console.error(JSON.stringify({
+        this.record({
           level: "warn",
           event: "detector_degraded",
           detectorId: execution.id,
           errorClass: execution.failureClass,
-        }));
+        });
       }
     }
     if (!inspection.detectorDegraded) {

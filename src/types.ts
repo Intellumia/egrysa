@@ -190,6 +190,17 @@ export interface AppConfig {
     // (default: the per-minute rate). Absent means unlimited by the gateway.
     rateLimit?: RateLimitConfig;
   };
+  // Evidence export to a SIEM or OpenTelemetry collector; see src/export.ts.
+  export?: {
+    url: string;
+    format?: "jsonl" | "otlp";
+    headersEnv?: string;
+    batchSize?: number;
+    flushIntervalMs?: number;
+    queueCapacity?: number;
+    checkpointEveryReceipts?: number;
+    timeoutMs?: number;
+  };
   // Per-workload overrides keyed by the workload id an inbound key carries.
   // Each override replaces the fields it names and inherits the rest; the
   // merged policy is validated at startup under the same rules as the global

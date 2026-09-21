@@ -40,6 +40,11 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Evidence export. `export` ships every committed receipt, a signed checkpoint every N receipts and
+  at shutdown, and the content-free events (detector degraded, stream response findings, rate
+  limited) to an HTTPS sink as JSON lines or OTLP/HTTP log records, with sink headers from an
+  environment variable, batching, backoff, a bounded queue that drops oldest with a counted metric,
+  and a flush deadline at shutdown. Exported receipts verify with the gateway's public key.
 - Azure OpenAI, AWS Bedrock, and Google Vertex AI provider kinds. Azure addresses a deployment with
   the `api-key` header and the OpenAI body. Bedrock and Vertex serve Anthropic models: Bedrock with
   a bearer API key or IAM credentials signed with Signature Version 4, and its binary event stream
