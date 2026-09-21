@@ -40,6 +40,12 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Azure OpenAI, AWS Bedrock, and Google Vertex AI provider kinds. Azure addresses a deployment with
+  the `api-key` header and the OpenAI body. Bedrock and Vertex serve Anthropic models: Bedrock with
+  a bearer API key or IAM credentials signed with Signature Version 4, and its binary event stream
+  decoded into the same events the Anthropic adapter already translates; Vertex with an OAuth access
+  token or a service-account key exchanged for tokens through a WebCrypto-signed JWT. No third-party
+  code; credentials come only from the environment variables the configuration names.
 - Anthropic Messages API ingress. `POST /v1/messages` accepts the Messages request shape (system
   prompt, text, `tool_use` and `tool_result` blocks, tools, `tool_choice`, streaming), translates it
   to the internal chat request, runs the unchanged policy, transformation, receipt, and provider

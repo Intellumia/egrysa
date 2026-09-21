@@ -67,7 +67,9 @@ training settings are policy inputs that must be validated through contract and 
   redacted or refused and transformable classes pass or are redacted by policy, and the signed
   receipt records the counts and the action.
 - Request-scoped, consistent surrogate replacement and local response recomposition.
-- OpenAI, Anthropic, and local OpenAI-compatible adapters with an explicit
+- OpenAI, Anthropic, local OpenAI-compatible, Azure OpenAI, AWS Bedrock, and Google Vertex AI
+  adapters (the last two for Anthropic models on those platforms, with SigV4 and service-account
+  authentication on WebCrypto alone), all with an explicit
   [capability table](src/provider_capabilities.ts), validated narrowing overrides, and disclosed
   downgrades.
 - Model allowlists, HTTPS enforcement, loopback-only HTTP, upstream deadlines, request-size limits,
@@ -94,7 +96,10 @@ provider/model/version, not a universal compatibility claim. See
 | ----------------- | ------------- | --------- | ----- | --------------------------------------------------------------------- | ------------------ |
 | openai            | yes           | native    | yes   | none                                                                  | **report wanted**  |
 | openai-compatible | yes           | native    | yes   | none                                                                  | **report wanted**  |
+| azure-openai      | yes           | native    | yes   | none                                                                  | **report wanted**  |
 | anthropic         | yes           | native    | yes   | seed, top_p, frequency_penalty, presence_penalty, parallel_tool_calls | **report wanted**  |
+| bedrock           | yes           | native    | yes   | seed, top_p, frequency_penalty, presence_penalty, parallel_tool_calls | **report wanted**  |
+| vertex            | yes           | native    | yes   | seed, top_p, frequency_penalty, presence_penalty, parallel_tool_calls | **report wanted**  |
 
 <!-- provider-matrix:end -->
 

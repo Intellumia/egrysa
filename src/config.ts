@@ -6,6 +6,7 @@ import {
   type NerDetectorConfig,
   type NerFindingKind,
   PROVIDER_CAPABILITY_KEYS,
+  PROVIDER_KINDS,
   type ProviderConfig,
   SEMANTIC_FINDING_KINDS,
   type SemanticDetectorConfig,
@@ -518,10 +519,64 @@ function validateProvider(provider: ProviderConfig): void {
   ) {
     throw new Error(`provider ${provider.id} requires an explicit model allowlist`);
   }
-  if (
-    !provider.local &&
-    (!provider.apiKeyEnv || !/^[A-Z_][A-Z0-9_]*$/.test(provider.apiKeyEnv))
-  ) {
+  const envName = /^[A-Z_][A-Z0-9_]*$/;
+  if (provider.apiKeyEnv !== undefined && !envName.test(provider.apiKeyEnv)) {
+    throw new Error(`provider ${provider.id} apiKeyEnv must be an environment variable name`);
+  }
+  if (!PROVIDER_KINDS.includes(provider.kind)) {
+    throw new Error(`provider ${provider.id} has unknown kind: ${provider.kind}`);
+  }
+  if (provider.kind === "azure-openai") {
+    if (!provider.deployment || !/^[A-Za-z0-9._-]{1,64}$/.test(provider.deployment)) {
+      throw new Error(`provider ${provider.id} requires a deployment name`);
+    }
+    if (
+      !provider.apiVersion || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-preview)?$/.test(provider.apiVersion)
+    ) {
+      throw new Error(`provider ${provider.id} requires an apiVersion such as 2024-10-21`);
+    }
+    if (!provider.local && !provider.apiKeyEnv) {
+      throw new Error(`provider ${provider.id} requires apiKeyEnv`);
+    }
+  } else if (provider.kind === "bedrock") {
+    if (!provider.region || !/^[a-z]{2}-[a-z]+-\d$/.test(provider.region)) {
+      throw new Error(`provider ${provider.id} requires an AWS region`);
+    }
+    const credentials = provider.credentialsEnv;
+    if (credentials !== undefined) {
+      if (
+        !credentials || typeof credentials !== "object" ||
+        !envName.test(credentials.accessKeyId ?? "") ||
+        !envName.test(credentials.secretAccessKey ?? "") ||
+        (credentials.sessionToken !== undefined && !envName.test(credentials.sessionToken))
+      ) throw new Error(`provider ${provider.id} credentialsEnv must name environment variables`);
+    }
+    if (!provider.local && !provider.apiKeyEnv && !credentials) {
+      throw new Error(`provider ${provider.id} requires apiKeyEnv or credentialsEnv`);
+    }
+  } else if (provider.kind === "vertex") {
+    if (!provider.region || !/^[a-z]+-[a-z]+\d$/.test(provider.region)) {
+      throw new Error(`provider ${provider.id} requires a Google Cloud region`);
+    }
+    if (!provider.project || !/^[a-z][a-z0-9-]{4,29}$/.test(provider.project)) {
+      throw new Error(`provider ${provider.id} requires a Google Cloud project id`);
+    }
+    if (provider.serviceAccountEnv !== undefined && !envName.test(provider.serviceAccountEnv)) {
+      throw new Error(
+        `provider ${provider.id} serviceAccountEnv must be an environment variable name`,
+      );
+    }
+    if (provider.tokenUrl !== undefined) {
+      const tokenUrl = new URL(provider.tokenUrl);
+      const loopbackToken = ["localhost", "127.0.0.1", "::1"].includes(tokenUrl.hostname);
+      if (tokenUrl.protocol !== "https:" && !(provider.local && loopbackToken)) {
+        throw new Error(`provider ${provider.id} tokenUrl must use HTTPS`);
+      }
+    }
+    if (!provider.local && !provider.apiKeyEnv && !provider.serviceAccountEnv) {
+      throw new Error(`provider ${provider.id} requires apiKeyEnv or serviceAccountEnv`);
+    }
+  } else if (!provider.local && !provider.apiKeyEnv) {
     throw new Error(`provider ${provider.id} requires apiKeyEnv`);
   }
   if (

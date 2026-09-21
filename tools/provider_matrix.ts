@@ -8,7 +8,16 @@ try {
   for await (const entry of Deno.readDir("evals/conformance")) {
     if (!entry.isFile || !entry.name.endsWith(".json")) continue;
     // Match the longer kind first because openai-compatible filenames also start with openai-.
-    for (const kind of ["openai-compatible", "anthropic", "openai"] as const) {
+    for (
+      const kind of [
+        "openai-compatible",
+        "azure-openai",
+        "anthropic",
+        "bedrock",
+        "vertex",
+        "openai",
+      ] as const
+    ) {
       if (!entry.name.startsWith(`${kind}-`)) continue;
       const current = reports[kind];
       const candidate = `evals/conformance/${entry.name}`;

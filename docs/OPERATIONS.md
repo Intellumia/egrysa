@@ -129,6 +129,34 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Cloud-hosted providers
+
+Three further provider kinds sit beside `openai`, `anthropic`, and `openai-compatible`. Each is
+selected by `kind` and configured with the fields below; everything else about a provider (model
+allowlist, `dataPolicy`, capability overrides, HTTPS, no redirects) is unchanged.
+
+| Kind           | Required fields                                             | Credential                                                                                                                              | Endpoint shape                                                                                                             |
+| -------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `azure-openai` | `deployment`, `apiVersion`, `apiKeyEnv`                     | `api-key` header                                                                                                                        | `{baseUrl}/openai/deployments/{deployment}/chat/completions?api-version=…`; OpenAI body without `store`                    |
+| `bedrock`      | `region`, and `apiKeyEnv` or `credentialsEnv`               | Bedrock API key as a bearer token, or IAM access key, secret, and optional session token signed with Signature Version 4                | `{baseUrl}/model/{model}/invoke` or `…/invoke-with-response-stream`; Anthropic body with `anthropic_version`               |
+| `vertex`       | `region`, `project`, and `apiKeyEnv` or `serviceAccountEnv` | OAuth access token, or a service-account key JSON exchanged for tokens with a WebCrypto-signed JWT, cached until a minute before expiry | `{baseUrl}/v1/projects/{project}/locations/{region}/publishers/anthropic/models/{model}:rawPredict` or `:streamRawPredict` |
+
+`bedrock` and `vertex` serve Anthropic models through those platforms; the model id in the request
+is the platform's model id (for example `anthropic.claude-3-5-sonnet-20241022-v2:0` on Bedrock).
+Both stream natively: Vertex speaks text/event-stream, and Bedrock's binary event stream is decoded
+into the same events, so recomposition is identical to streaming through Anthropic directly.
+
+Credentials are read only from the environment variables the configuration names, and the gateway's
+`--allow-env` list must include them; the shipped tasks and container allow `AZURE_OPENAI_API_KEY`,
+`AWS_BEARER_TOKEN_BEDROCK`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
+`GOOGLE_ACCESS_TOKEN`, and `GOOGLE_SERVICE_ACCOUNT_JSON`. The `--allow-net` list must include the
+provider hosts, which are deployment-specific (`{resource}.openai.azure.com`,
+`bedrock-runtime.{region}.amazonaws.com`, `{region}-aiplatform.googleapis.com`, and
+`oauth2.googleapis.com` for service-account exchange); Deno permissions do not take wildcards, so
+run the gateway with an explicit list for your deployment rather than the shipped one.
+
+Conformance reports for these kinds are wanted; the provider matrix in the README marks them so.
+
 ## Surrogate style and scope
 
 `policy.surrogates` (globally or per workload) chooses how transformable values are replaced before

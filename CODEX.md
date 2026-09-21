@@ -22,7 +22,8 @@ Built: OpenAI-compatible text ingress, native SSE streaming across the shipped p
 explicit provider capability profiles and downgrade disclosure, bounded function-tool messages,
 model discovery, deterministic classification, an opt-in reference local NER detector for person
 names and physical addresses, an opt-in reference local semantic detector for person names, physical
-addresses, and semantically confidential content, policy routing, local recomposition, durable
+addresses, and semantically confidential content, policy routing, OpenAI, Anthropic, local
+OpenAI-compatible, Azure OpenAI, Bedrock, and Vertex adapters, local recomposition, durable
 Ed25519-signed attributed receipts, a provider conformance harness, tests, synthetic evals, CI, and
 hardened deployment examples.
 

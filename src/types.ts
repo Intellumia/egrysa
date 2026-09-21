@@ -90,15 +90,41 @@ export type ProviderCapabilityKey = typeof PROVIDER_CAPABILITY_KEYS[number];
 export type ProviderCapabilities = Record<ProviderCapabilityKey, boolean>;
 export type ProviderCapabilityOverrides = Partial<Record<ProviderCapabilityKey, boolean>>;
 
+export const PROVIDER_KINDS = [
+  "openai",
+  "anthropic",
+  "openai-compatible",
+  "azure-openai",
+  "bedrock",
+  "vertex",
+] as const;
+
 export interface ProviderConfig {
   id: string;
-  kind: "openai" | "anthropic" | "openai-compatible";
+  kind: typeof PROVIDER_KINDS[number];
   baseUrl: string;
+  // Name of the environment variable holding the bearer credential: the API
+  // key for openai, anthropic, openai-compatible, and azure-openai; a Bedrock
+  // API key for bedrock; an OAuth access token for vertex.
   apiKeyEnv?: string;
   allowedModels: string[];
   local?: boolean;
   capabilities?: ProviderCapabilityOverrides;
   dataPolicy: DataPolicy;
+  // azure-openai: the deployment name and API version the endpoint expects.
+  deployment?: string;
+  apiVersion?: string;
+  // bedrock and vertex: the region; vertex also needs the project.
+  region?: string;
+  project?: string;
+  // bedrock: IAM credentials as environment variable names, signed with
+  // Signature Version 4. Used when apiKeyEnv is absent.
+  credentialsEnv?: { accessKeyId: string; secretAccessKey: string; sessionToken?: string };
+  // vertex: environment variable holding a service-account key JSON, exchanged
+  // for access tokens. Used when apiKeyEnv is absent. tokenUrl overrides the
+  // account's token endpoint, for tests.
+  serviceAccountEnv?: string;
+  tokenUrl?: string;
 }
 
 export interface SemanticDetectorConfig {
