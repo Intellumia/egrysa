@@ -4,6 +4,8 @@
 
 - The release commit is reachable from protected `main`.
 - `deno task check`, `deno task eval`, and `deno audit` pass.
+- `info.version` in `api/openapi.yaml` equals the tag without its `v`, and the frozen surfaces in
+  [the compatibility policy](COMPATIBILITY.md) changed only as that policy allows.
 - Public claims match demonstrated behavior and `CHANGELOG.md` is current.
 - Hardened container and Kubernetes probes pass with the durable receipt volume, Ed25519 keys,
   streaming, tools, restart continuity, and tamper rejection.
@@ -208,7 +210,10 @@ the corpus must contain them.
   release asset, avoiding the registry predicate collision. It must pass retained and independent
   verification before a GitHub release is created.
 
-## Alpha versioning
+## Alpha and beta versioning
 
 Use `v0.1.0-alpha.N` until the public API, receipt schema, configuration schema, and support window
-are stable. Security fixes increment the prerelease number and document impact in the changelog.
+are stable, and `v0.1.0-beta.N` once [the compatibility policy](COMPATIBILITY.md) is adopted and
+enforced by `tests/compatibility_test.ts`. Security fixes increment the prerelease number and
+document impact in the changelog. Breaking changes to a frozen surface wait for the next minor
+version and are announced one release ahead.

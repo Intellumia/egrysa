@@ -66,7 +66,106 @@ export async function loadConfig(
   return parsed;
 }
 
+// The frozen configuration schema (api/config.schema.json) closes every
+// object it defines, so a misspelt or retired field fails at startup instead
+// of being ignored. The sets here mirror the schema and a test holds them to it.
+const TOP_LEVEL_FIELDS = new Set([
+  "schemaVersion",
+  "listen",
+  "maxRequestBytes",
+  "maxResponseBytes",
+  "requestTimeoutMs",
+  "receiptCapacity",
+  "receiptLogPath",
+  "receiptMaxLogBytes",
+  "receiptChainId",
+  "receiptSigner",
+  "providers",
+  "semanticDetector",
+  "nerDetector",
+  "policy",
+  "oidc",
+  "export",
+  "workloads",
+]);
+const POLICY_FIELDS = new Set([
+  "defaultProvider",
+  "localProvider",
+  "blockKinds",
+  "localOnlyKinds",
+  "transformKinds",
+  "sensitiveTerms",
+  "sensitivity",
+  "response",
+  "surrogates",
+  "rateLimit",
+]);
+const PROVIDER_FIELDS = new Set([
+  "id",
+  "kind",
+  "baseUrl",
+  "apiKeyEnv",
+  "allowedModels",
+  "local",
+  "capabilities",
+  "dataPolicy",
+  "deployment",
+  "apiVersion",
+  "region",
+  "project",
+  "credentialsEnv",
+  "serviceAccountEnv",
+  "tokenUrl",
+]);
+const SEMANTIC_DETECTOR_FIELDS = new Set([
+  "enabled",
+  "providerId",
+  "model",
+  "timeoutMs",
+  "totalTimeoutMs",
+  "maxInputBytes",
+  "onDetectorFailure",
+  "kinds",
+]);
+const NER_DETECTOR_FIELDS = new Set([
+  "enabled",
+  "baseUrl",
+  "timeoutMs",
+  "totalTimeoutMs",
+  "maxInputBytes",
+  "minConfidence",
+  "onDetectorFailure",
+  "kinds",
+]);
+
+function rejectUnknownFields(value: unknown, allowed: Set<string>, label: string): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) throw new Error(`${label} has unknown field: ${key}`);
+  }
+}
+
 export function validateConfig(config: AppConfig): void {
+  rejectUnknownFields(config, TOP_LEVEL_FIELDS, "configuration");
+  if (config.schemaVersion !== undefined && config.schemaVersion !== 1) {
+    throw new Error("schemaVersion must be 1");
+  }
+  rejectUnknownFields(config.listen, new Set(["hostname", "port"]), "listen");
+  rejectUnknownFields(config.policy, POLICY_FIELDS, "policy");
+  if (config.semanticDetector !== undefined) {
+    rejectUnknownFields(config.semanticDetector, SEMANTIC_DETECTOR_FIELDS, "semanticDetector");
+  }
+  if (config.nerDetector !== undefined) {
+    rejectUnknownFields(config.nerDetector, NER_DETECTOR_FIELDS, "nerDetector");
+  }
+  if (!Array.isArray(config.policy.sensitiveTerms)) {
+    throw new Error("policy.sensitiveTerms must be an array");
+  }
+  for (const term of config.policy.sensitiveTerms) {
+    rejectUnknownFields(term, new Set(["term", "label"]), "policy.sensitiveTerms entry");
+  }
   if (
     !config.listen?.hostname || !Number.isInteger(config.listen.port) || config.listen.port < 1 ||
     config.listen.port > 65_535
@@ -341,6 +440,18 @@ function validateWorkloads(config: AppConfig): void {
       }
     }
     const typed = override as WorkloadPolicy;
+    if (typed.sensitiveTerms !== undefined) {
+      if (!Array.isArray(typed.sensitiveTerms)) {
+        throw new Error(`workloads.${workloadId}.sensitiveTerms must be an array`);
+      }
+      for (const term of typed.sensitiveTerms) {
+        rejectUnknownFields(
+          term,
+          new Set(["term", "label"]),
+          `workloads.${workloadId}.sensitiveTerms entry`,
+        );
+      }
+    }
     for (const list of ["allowedProviders", "allowedModels"] as const) {
       const values = typed[list];
       if (values === undefined) continue;
@@ -502,6 +613,19 @@ function validatePolicyTaxonomy(policy: AppConfig["policy"]): void {
 }
 
 function validateProvider(provider: ProviderConfig): void {
+  rejectUnknownFields(provider, PROVIDER_FIELDS, `provider ${provider.id}`);
+  rejectUnknownFields(
+    provider.dataPolicy,
+    new Set(["training", "retention", "allowRaw"]),
+    `provider ${provider.id} dataPolicy`,
+  );
+  if (provider.credentialsEnv !== undefined) {
+    rejectUnknownFields(
+      provider.credentialsEnv,
+      new Set(["accessKeyId", "secretAccessKey", "sessionToken"]),
+      `provider ${provider.id} credentialsEnv`,
+    );
+  }
   const url = new URL(provider.baseUrl);
   const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" ||
     url.hostname === "::1";

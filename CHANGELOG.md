@@ -7,6 +7,13 @@ public tag.
 
 ### Added
 
+- Compatibility policy. `docs/COMPATIBILITY.md` freezes the HTTP API, receipt schema (versions 2 to
+  5 verify forever), configuration schema (`api/config.schema.json`, `schemaVersion` 1), evidence
+  export records, and the detector and signer contracts, and states the support window and how
+  breaking changes are announced. `tests/compatibility_test.ts` holds the code to it: shipped
+  configurations conform to the schema, enumerations match the code, unknown fields are rejected at
+  every closed level, every documented path is served, and a receipt chain written by alpha.5
+  (`tests/fixtures/receipts-alpha5/`) loads, verifies, and continues.
 - Provider conformance harness with deterministic wire checks, informational surrogate-fidelity
   evidence, dated JSON reports, and a generated README support matrix.
 - OpenAI-compatible text gateway with deterministic policy decisions.
@@ -145,6 +152,11 @@ public tag.
 
 ### Changed
 
+- Unknown configuration fields are rejected at every level (top level, `listen`, `policy`, providers
+  and their `dataPolicy` and `credentialsEnv`, `sensitiveTerms` entries, `semanticDetector`,
+  `nerDetector`), where previously only some nested blocks were closed. A configuration carrying a
+  misspelt or retired field now fails at startup instead of being silently ignored. Optional
+  `schemaVersion: 1` is accepted.
 - Tagged release jobs now self-verify the immutable image signature, keyless CycloneDX signature,
   and GitHub provenance, then retain signed checksums, verification results, and the underlying
   evidence bundles for publication with the release.
@@ -205,6 +217,10 @@ public tag.
 
 ### Fixed
 
+- The Kubernetes ConfigMap left `person_name`, `physical_address`, and `semantic_confidential`
+  without a policy action after the taxonomy expansion, so the shipped manifest failed validation at
+  startup. The compatibility test now runs every shipped configuration, including the ConfigMap,
+  through the validator.
 - Streamed responses no longer count the gateway's own receipt signing and fsync against the
   upstream deadline. The connect deadline is cleared when the stream's headers arrive and a fresh
   deadline is armed when the gateway starts reading, after the receipt is durable, so a slow disk on

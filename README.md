@@ -283,6 +283,7 @@ and an externally storable signed chain checkpoint are available at `/v1/receipt
 - [Roadmap](ROADMAP.md)
 - [Governance](GOVERNANCE.md)
 - [Support](SUPPORT.md)
+- [Compatibility policy](docs/COMPATIBILITY.md)
 - [Release process](docs/RELEASE.md)
 
 Apache-2.0 licensed. Egrysa is the selected product name. The repository records that external legal

@@ -1,0 +1,7 @@
+{
+  "note": "Throwaway test key pair used only to sign this frozen fixture chain. Not a deployment key.",
+  "privateKeyPkcs8": "MC4CAQAwBQYDK2VwBCIEICtImGTTICuJDXQrOlvy1YWU5s4W21juPk3Nw3I1947K",
+  "publicKeySpki": "MCowBQYDK2VwAyEA6KqSkb9cO8ooKVC6QUZYF86HHQTzZz8aStsc+v9ddus=",
+  "fingerprintKey": "frozen-fixture-fingerprint-key-not-for-deployment-0000",
+  "chainId": "frozen-alpha5"
+}

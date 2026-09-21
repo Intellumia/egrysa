@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Intellumia/egrysa/api/config.schema.json",
+  "title": "Egrysa gateway configuration",
+  "description": "Configuration schema version 1. Frozen under docs/COMPATIBILITY.md: fields are added, never renamed or removed, within schema version 1. Unknown fields are rejected at every level. tests/compatibility_test.ts holds this document to the validator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "listen",
+    "maxRequestBytes",
+    "requestTimeoutMs",
+    "receiptCapacity",
+    "receiptLogPath",
+    "receiptChainId",
+    "providers",
+    "policy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Configuration schema version. Absent means 1."
+    },
+    "listen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostname", "port"],
+      "properties": {
+        "hostname": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "maxRequestBytes": { "type": "integer", "minimum": 1024, "maximum": 10485760 },
+    "maxResponseBytes": { "type": "integer", "minimum": 65536 },
+    "requestTimeoutMs": { "type": "integer", "minimum": 100, "maximum": 300000 },
+    "receiptCapacity": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+    "receiptLogPath": { "type": "string", "minLength": 1 },
+    "receiptMaxLogBytes": { "type": "integer", "minimum": 1024, "maximum": 1073741824 },
+    "receiptChainId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "receiptSigner": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "local" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "url"],
+          "properties": {
+            "kind": { "const": "remote" },
+            "url": { "type": "string", "format": "uri" },
+            "headersEnv": { "$ref": "#/$defs/envName" },
+            "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 60000 }
+          }
+        }
+      ]
+    },
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/provider" }
+    },
+    "semanticDetector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "providerId": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 300000 },
+        "totalTimeoutMs": { "type": "integer", "minimum": 100, "maximum": 300000 },
+        "maxInputBytes": { "type": "integer", "minimum": 256 },
+        "onDetectorFailure": { "enum": ["degrade", "deny"] },
+        "kinds": {
+          "type": "array",
+          "items": { "enum": ["person_name", "physical_address", "semantic_confidential"] }
+        }
+      }
+    },
+    "nerDetector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "baseUrl": { "type": "string", "format": "uri" },
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 300000 },
+        "totalTimeoutMs": { "type": "integer", "minimum": 100, "maximum": 300000 },
+        "maxInputBytes": { "type": "integer", "minimum": 256 },
+        "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "onDetectorFailure": { "enum": ["degrade", "deny"] },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "enum": ["person_name", "physical_address", "organization", "prompt_injection"]
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "defaultProvider",
+        "localProvider",
+        "blockKinds",
+        "localOnlyKinds",
+        "transformKinds",
+        "sensitiveTerms"
+      ],
+      "properties": {
+        "defaultProvider": { "type": "string", "minLength": 1 },
+        "localProvider": { "type": "string", "minLength": 1 },
+        "blockKinds": { "$ref": "#/$defs/findingKinds" },
+        "localOnlyKinds": { "$ref": "#/$defs/findingKinds" },
+        "transformKinds": { "$ref": "#/$defs/findingKinds" },
+        "sensitiveTerms": { "type": "array", "items": { "$ref": "#/$defs/sensitiveTerm" } },
+        "sensitivity": { "$ref": "#/$defs/sensitivity" },
+        "response": { "$ref": "#/$defs/responsePolicy" },
+        "surrogates": { "$ref": "#/$defs/surrogatePolicy" },
+        "rateLimit": { "$ref": "#/$defs/rateLimit" }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issuer", "audience"],
+      "properties": {
+        "issuer": { "type": "string", "format": "uri" },
+        "audience": { "type": "string", "minLength": 1 },
+        "jwksUrl": { "type": "string", "format": "uri" },
+        "workloadClaim": { "$ref": "#/$defs/claimName" },
+        "roleClaim": { "$ref": "#/$defs/claimName" },
+        "auditorRole": { "$ref": "#/$defs/claimName" },
+        "clockSkewSeconds": { "type": "integer", "minimum": 0, "maximum": 600 },
+        "jwksTtlSeconds": { "type": "integer", "minimum": 60, "maximum": 86400 }
+      }
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "format": { "enum": ["jsonl", "otlp"] },
+        "headersEnv": { "$ref": "#/$defs/envName" },
+        "batchSize": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "flushIntervalMs": { "type": "integer", "minimum": 100, "maximum": 600000 },
+        "queueCapacity": { "type": "integer", "minimum": 10, "maximum": 1000000 },
+        "checkpointEveryReceipts": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 60000 }
+      }
+    },
+    "workloads": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+      "additionalProperties": { "$ref": "#/$defs/workloadPolicy" }
+    }
+  },
+  "$defs": {
+    "envName": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" },
+    "claimName": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,127}$" },
+    "findingKind": {
+      "enum": [
+        "email",
+        "phone",
+        "ipv4",
+        "iban",
+        "ssn",
+        "credit_card",
+        "private_key",
+        "api_secret",
+        "confidential_term",
+        "person_name",
+        "physical_address",
+        "semantic_confidential",
+        "ipv6",
+        "mac_address",
+        "date_of_birth",
+        "aadhaar",
+        "india_pan",
+        "uk_nino",
+        "nhs_number",
+        "passport",
+        "bank_account",
+        "crypto_wallet",
+        "vin",
+        "organization",
+        "prompt_injection"
+      ]
+    },
+    "findingKinds": { "type": "array", "items": { "$ref": "#/$defs/findingKind" } },
+    "sensitivity": { "enum": ["strict", "balanced", "review"] },
+    "sensitiveTerm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["term", "label"],
+      "properties": {
+        "term": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    },
+    "responsePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scan": { "type": "boolean" },
+        "blocked": { "enum": ["redact", "deny"] },
+        "transformable": { "enum": ["pass", "redact"] }
+      }
+    },
+    "surrogatePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "style": { "enum": ["token", "synthetic"] },
+        "scope": { "enum": ["request", "workload"] }
+      }
+    },
+    "rateLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestsPerMinute"],
+      "properties": {
+        "requestsPerMinute": { "type": "integer", "minimum": 1 },
+        "burst": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "workloadPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "blockKinds": { "$ref": "#/$defs/findingKinds" },
+        "localOnlyKinds": { "$ref": "#/$defs/findingKinds" },
+        "transformKinds": { "$ref": "#/$defs/findingKinds" },
+        "sensitiveTerms": { "type": "array", "items": { "$ref": "#/$defs/sensitiveTerm" } },
+        "sensitivity": { "$ref": "#/$defs/sensitivity" },
+        "response": { "$ref": "#/$defs/responsePolicy" },
+        "rateLimit": { "$ref": "#/$defs/rateLimit" },
+        "surrogates": { "$ref": "#/$defs/surrogatePolicy" },
+        "defaultProvider": { "type": "string", "minLength": 1 },
+        "allowedProviders": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "allowedModels": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "dataPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["training", "retention", "allowRaw"],
+      "properties": {
+        "training": { "enum": ["disabled", "enabled", "unknown"] },
+        "retention": { "enum": ["none", "standard", "unknown"] },
+        "allowRaw": { "type": "boolean" }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "baseUrl", "allowedModels", "dataPolicy"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["openai", "anthropic", "openai-compatible", "azure-openai", "bedrock", "vertex"]
+        },
+        "baseUrl": { "type": "string", "format": "uri" },
+        "apiKeyEnv": { "$ref": "#/$defs/envName" },
+        "allowedModels": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "local": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "temperature": { "type": "boolean" },
+            "max_tokens": { "type": "boolean" },
+            "seed": { "type": "boolean" },
+            "top_p": { "type": "boolean" },
+            "frequency_penalty": { "type": "boolean" },
+            "presence_penalty": { "type": "boolean" }
+          }
+        },
+        "dataPolicy": { "$ref": "#/$defs/dataPolicy" },
+        "deployment": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+        "apiVersion": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-preview)?$" },
+        "region": { "type": "string", "minLength": 1 },
+        "project": { "type": "string", "pattern": "^[a-z][a-z0-9-]{4,29}$" },
+        "credentialsEnv": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["accessKeyId", "secretAccessKey"],
+          "properties": {
+            "accessKeyId": { "$ref": "#/$defs/envName" },
+            "secretAccessKey": { "$ref": "#/$defs/envName" },
+            "sessionToken": { "$ref": "#/$defs/envName" }
+          }
+        },
+        "serviceAccountEnv": { "$ref": "#/$defs/envName" },
+        "tokenUrl": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}
