@@ -239,7 +239,8 @@ redacted regression case. Do not copy raw prompts into tickets or chat.
 ## SLO candidates for an evaluation
 
 - Availability: 99.9% for the gateway path.
-- Local policy overhead: p95 under 200 ms, measured without provider latency.
+- Local policy overhead: p95 under 200 ms, measured without provider latency. `deno task bench:e2e`
+  measures the gateway against an in-process echo provider on the operator's own storage.
 - Deny/transform decision errors: tracked per approved data class.
 - Receipt creation: 100% of accepted or policy-denied chat requests.
 - Raw-content logging incidents: zero.

@@ -143,7 +143,9 @@ an `x-egrysa-receipt` identifier. Add `"stream": true` to exercise the same path
 bounded holdback recomposition reassembles surrogates split across chunk boundaries.
 
 The stub is evaluation scaffolding in `tools/`, not part of the data plane. For measured detection
-coverage, see [detection coverage](docs/DETECTION_COVERAGE.md).
+coverage, see [detection coverage](docs/DETECTION_COVERAGE.md). For the gateway's own latency and
+throughput against an in-process echo provider, run `deno task bench:e2e`; it needs no model, key,
+or second terminal and prints no content.
 
 ## Local evaluation
 
