@@ -61,6 +61,9 @@ training settings are policy inputs that must be validated through contract and 
   per request or stable per workload through a keyed hash with nothing stored.
 - Opt-in prompt-injection detection through the same sidecar, as a low-precision blocked class so
   the sensitivity switch decides whether a flagged request is routed locally, refused, or held.
+- OpenID Connect bearer tokens from a configured issuer, verified on WebCrypto against the issuer's
+  published keys, mapping a claim to the workload id and optionally to the auditor role, beside the
+  static keys.
 - Per-workload rate limiting with `Retry-After`, and a read-only auditor role whose keys can read
   every workload's receipts and the metrics but cannot submit a request.
 - Per-workload policy: each inbound key's workload can override the data-class actions, sensitivity,

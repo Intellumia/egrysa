@@ -40,6 +40,10 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- OpenID Connect bearer tokens. With `oidc` configured, a bearer that matches no static key and has
+  the shape of a JWT is verified against the issuer's JWKS (discovered or given), checked for
+  issuer, audience, and time, and mapped through a claim to the workload id and optionally the
+  auditor role. RS256 and ES256, WebCrypto only.
 - Evidence export. `export` ships every committed receipt, a signed checkpoint every N receipts and
   at shutdown, and the content-free events (detector degraded, stream response findings, rate
   limited) to an HTTPS sink as JSON lines or OTLP/HTTP log records, with sink headers from an

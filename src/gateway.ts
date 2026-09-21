@@ -5,7 +5,7 @@ import {
   toChatRequest,
   validateAnthropicRequest,
 } from "./anthropic_ingress.ts";
-import { InboundAuth } from "./auth.ts";
+import { InboundAuth, type Role } from "./auth.ts";
 import { BodySizeLimitError, readBoundedBytes } from "./bounded.ts";
 import { inspectChat, transformChat } from "./chat.ts";
 import {
@@ -29,6 +29,7 @@ import {
 } from "./providers.ts";
 import { ReceiptStore } from "./receipts.ts";
 import { Exporter, resolveExportConfig } from "./export.ts";
+import { looksLikeJwt, OidcVerifier, resolveOidcConfig } from "./oidc.ts";
 import { observeResponseText, scanResponse, UNSCANNED } from "./response.ts";
 import { createDetectors } from "./classifier.ts";
 import { recomposeOpenAiStream, RecompositionError } from "./streaming.ts";
@@ -46,6 +47,18 @@ export class Gateway {
   private readonly pendingReviews = new Set<string>();
   private readonly limiter = new RateLimiter();
   private exporter: Exporter | null = null;
+  private oidc: OidcVerifier | null = null;
+
+  // Static keys first; a bearer that is not one of them and looks like a JWT
+  // is tried against the configured issuer.
+  private async authenticate(
+    header: string | null,
+  ): Promise<{ workloadId: string; role: Role } | null> {
+    const byKey = await this.auth.authorize(header);
+    if (byKey || !this.oidc || !header?.startsWith("Bearer ")) return byKey;
+    const token = header.slice(7).trim();
+    return looksLikeJwt(token) ? await this.oidc.authorize(token) : null;
+  }
 
   // Content-free events go to the log and, when configured, to the sink.
   private record(body: Record<string, unknown>): void {
@@ -111,6 +124,7 @@ export class Gateway {
       exporter = new Exporter(settings, () => gateway.receipts.checkpoint());
       gateway.exporter = exporter;
     }
+    if (config.oidc) gateway.oidc = new OidcVerifier(resolveOidcConfig(config.oidc));
     return gateway;
   }
 
@@ -177,7 +191,7 @@ export class Gateway {
     if (request.method === "GET" && url.pathname === "/readyz") {
       return json({ status: "ready" });
     }
-    const auth = await this.auth.authorize(request.headers.get("authorization"));
+    const auth = await this.authenticate(request.headers.get("authorization"));
     if (!auth) {
       return problem(401, "unauthorized", "A valid gateway bearer token is required.");
     }

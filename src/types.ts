@@ -190,6 +190,17 @@ export interface AppConfig {
     // (default: the per-minute rate). Absent means unlimited by the gateway.
     rateLimit?: RateLimitConfig;
   };
+  // OpenID Connect bearer tokens as an alternative to static keys; see src/oidc.ts.
+  oidc?: {
+    issuer: string;
+    audience: string;
+    jwksUrl?: string;
+    workloadClaim?: string;
+    roleClaim?: string;
+    auditorRole?: string;
+    clockSkewSeconds?: number;
+    jwksTtlSeconds?: number;
+  };
   // Evidence export to a SIEM or OpenTelemetry collector; see src/export.ts.
   export?: {
     url: string;

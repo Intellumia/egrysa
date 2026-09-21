@@ -223,6 +223,33 @@ caching hit. The cost is linkability: a provider can tell that two requests from
 the same entity, without learning what it is. Choose `workload` scope only where that is acceptable,
 and rotate the fingerprint key to break the linkage.
 
+## OpenID Connect
+
+Static workload keys stay the default. A deployment with an identity provider can also accept the
+provider's bearer tokens:
+
+```json
+{
+  "oidc": {
+    "issuer": "https://login.example.com/tenant",
+    "audience": "egrysa",
+    "workloadClaim": "sub",
+    "roleClaim": "roles",
+    "auditorRole": "egrysa:auditor"
+  }
+}
+```
+
+A bearer that matches no static key and has the shape of a JWT is verified against the issuer's
+published keys, discovered through `/.well-known/openid-configuration` unless `jwksUrl` is given,
+cached for `jwksTtlSeconds` and refreshed at most once a minute when a token names an unknown key.
+RS256 and ES256 are accepted. The token must carry the configured issuer and audience and be within
+its validity window, with `clockSkewSeconds` of tolerance. The `workloadClaim` (default `sub`)
+becomes the workload id that policy, per-workload overrides, rate limits, and receipts already key
+on, so it must be a valid workload id; if `roleClaim` lists `auditorRole`, the caller gets the
+read-only auditor role. An unverifiable token is an unauthenticated request, whatever the reason.
+The issuer host must be in the gateway's `--allow-net` list.
+
 ## Rate limiting and roles
 
 `policy.rateLimit` sets a token bucket per workload: `requestsPerMinute` is the sustained rate and
