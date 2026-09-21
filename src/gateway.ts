@@ -36,7 +36,7 @@ import { createDetectors } from "./classifier.ts";
 import { recomposeOpenAiStream, RecompositionError } from "./streaming.ts";
 import { hasSurrogateResidueAfterRecomposition, recomposeChecked } from "./surrogate.ts";
 import { createSemanticDetector, REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
-import type { AppConfig, ChatRequest, ReceiptDetector } from "./types.ts";
+import type { AppConfig, ChatRequest, PrivacyReceipt, ReceiptDetector } from "./types.ts";
 
 // Receipt identifiers for requests held under review sensitivity. Held in
 // memory only: a restart clears them, and the caller simply receives a fresh
@@ -452,11 +452,21 @@ export class Gateway {
         ? null
         : await scanResponse(invocation.data, config, detectors, aggregateMap);
       if (scan) this.recordResponseScan(scan.evidence);
-      const receipt = await this.receipts.create({
-        ...receiptContext,
-        egress: invocation.type === "stream" && !invocation.emulated ? "started" : "completed",
-        response: scan ? scan.evidence : UNSCANNED,
-      });
+      let receipt: PrivacyReceipt;
+      try {
+        receipt = await this.receipts.create({
+          ...receiptContext,
+          egress: invocation.type === "stream" && !invocation.emulated ? "started" : "completed",
+          response: scan ? scan.evidence : UNSCANNED,
+        });
+      } catch (error) {
+        // No receipt, no response: an unread upstream stream is released
+        // rather than left to a deadline that is no longer running.
+        if (invocation.type === "stream") {
+          await invocation.response.body?.cancel().catch(() => undefined);
+        }
+        throw error;
+      }
       receiptId = receipt.id;
       if (scan?.denied) {
         return problem(
@@ -471,6 +481,8 @@ export class Gateway {
         // observed and recorded in metrics and a content-free log event.
         let observed = "";
         const limit = this.config.maxResponseBytes ?? 32 * 1024 * 1024;
+        // The receipt is durable; from here the provider's clock runs.
+        invocation.arm();
         const stream = recomposeOpenAiStream(
           invocation.response.body!,
           aggregateMap,

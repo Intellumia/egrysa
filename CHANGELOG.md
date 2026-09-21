@@ -205,6 +205,13 @@ public tag.
 
 ### Fixed
 
+- Streamed responses no longer count the gateway's own receipt signing and fsync against the
+  upstream deadline. The connect deadline is cleared when the stream's headers arrive and a fresh
+  deadline is armed when the gateway starts reading, after the receipt is durable, so a slow disk on
+  a loaded host cannot abort a healthy stream before its first byte (the intermittent CI failure in
+  the acceptance suite's streaming stage, issue #27, reproduced by simulating a slow fsync). A
+  stream that runs past the deadline once armed is still aborted, and an upstream stream whose
+  receipt cannot be written is now released rather than left open.
 - A password carried in a URL authority matched the email pattern, so a credential was surrogated
   but recorded as `email` and routed to `transform` rather than `deny`. A dedicated pattern now
   claims the whole authority.
