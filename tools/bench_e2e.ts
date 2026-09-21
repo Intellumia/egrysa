@@ -370,7 +370,7 @@ async function main(): Promise<void> {
     }
     console.log(
       options.receipts === "file"
-        ? "Throughput is bounded by the fsynced receipt append; compare --receipts=memory to see the disk cost."
+        ? "Receipts are group-committed: a single caller pays one fsync per request, and concurrent callers share fsyncs. Compare --receipts=memory to see the disk cost."
         : "Receipts were not persisted; the default file mode adds one fsync per request on top of this.",
     );
   } finally {
