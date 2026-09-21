@@ -6,4 +6,6 @@ coverage/
 dist/
 artifacts/
 data/
+.eval-kit/
+evidence/
 *.log
