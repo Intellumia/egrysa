@@ -113,6 +113,7 @@ export function validateConfig(config: AppConfig): void {
   validateNerDetectorConfig(config);
   validatePolicyTaxonomy(config.policy);
   validateResponsePolicy(config.policy);
+  validateRateLimit(config.policy);
   validateWorkloads(config);
   if (
     config.policy.sensitivity !== undefined &&
@@ -305,6 +306,7 @@ const WORKLOAD_FIELDS = new Set([
   "sensitiveTerms",
   "sensitivity",
   "response",
+  "rateLimit",
   "defaultProvider",
   "allowedProviders",
   "allowedModels",
@@ -373,11 +375,41 @@ function validateWorkloads(config: AppConfig): void {
     try {
       validatePolicyTaxonomy(merged.policy);
       validateResponsePolicy(merged.policy);
+      validateRateLimit(merged.policy);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`workloads.${workloadId}: ${message}`);
     }
   }
+}
+
+export function resolveRateLimit(
+  policy: AppConfig["policy"],
+): { requestsPerMinute: number; burst: number } | null {
+  const raw = policy.rateLimit;
+  if (!raw) return null;
+  return { requestsPerMinute: raw.requestsPerMinute, burst: raw.burst ?? raw.requestsPerMinute };
+}
+
+function validateRateLimit(policy: AppConfig["policy"]): void {
+  const raw = policy.rateLimit;
+  if (raw === undefined) return;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("policy.rateLimit must be an object");
+  }
+  for (const key of Object.keys(raw)) {
+    if (!["requestsPerMinute", "burst"].includes(key)) {
+      throw new Error(`policy.rateLimit has unknown field: ${key}`);
+    }
+  }
+  if (
+    !Number.isInteger(raw.requestsPerMinute) || raw.requestsPerMinute < 1 ||
+    raw.requestsPerMinute > 1_000_000
+  ) throw new Error("policy.rateLimit.requestsPerMinute must be an integer from 1 to 1000000");
+  if (
+    raw.burst !== undefined &&
+    (!Number.isInteger(raw.burst) || raw.burst < 1 || raw.burst > 1_000_000)
+  ) throw new Error("policy.rateLimit.burst must be an integer from 1 to 1000000");
 }
 
 function validateResponsePolicy(policy: AppConfig["policy"]): void {

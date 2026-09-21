@@ -145,6 +145,9 @@ export interface AppConfig {
     // What to do with sensitive data the provider sends back. Findings are
     // made before recomposition, so they are provider-originated.
     response?: ResponsePolicyConfig;
+    // Requests per minute a workload may submit, with an optional burst
+    // (default: the per-minute rate). Absent means unlimited by the gateway.
+    rateLimit?: RateLimitConfig;
   };
   // Per-workload overrides keyed by the workload id an inbound key carries.
   // Each override replaces the fields it names and inherits the rest; the
@@ -160,12 +163,18 @@ export interface WorkloadPolicy {
   sensitiveTerms?: Array<{ term: string; label: string }>;
   sensitivity?: Sensitivity;
   response?: ResponsePolicyConfig;
+  rateLimit?: RateLimitConfig;
   defaultProvider?: string;
   // Providers this workload may use, by id. A request naming another
   // provider, or a default outside the list, is refused.
   allowedProviders?: string[];
   // Models this workload may request, across providers.
   allowedModels?: string[];
+}
+
+export interface RateLimitConfig {
+  requestsPerMinute: number;
+  burst?: number;
 }
 
 export interface ResponsePolicyConfig {
