@@ -14,12 +14,14 @@
   independently anchored audit evidence.
 
 The JSONL receipt chain fsyncs every receipt before request handling continues and survives process
-restarts on durable storage, but it remains single-writer. `receiptMaxLogBytes` defaults to 64 MiB.
-At the limit, Egrysa renames the active log with its last sequence and starts a new log with a
-signed chain-head checkpoint; archived segments are not loaded at startup and need an operator
-retention policy. Run one replica until a consistency-aware sequencing backend exists. A holder of
-the software signing key can rewrite unanchored history, so retain signed checkpoints outside the
-gateway.
+restarts on durable storage, but it remains single-writer. Concurrent receipts share one fsync
+(group commit), so throughput scales with the number of receipts a single fsync can cover rather
+than being bounded by one fsync per request; a failed fsync faults the store until restart.
+`receiptMaxLogBytes` defaults to 64 MiB. At the limit, Egrysa renames the active log with its last
+sequence and starts a new log with a signed chain-head checkpoint; archived segments are not loaded
+at startup and need an operator retention policy. Run one replica until a consistency-aware
+sequencing backend exists. A holder of the software signing key can rewrite unanchored history, so
+retain signed checkpoints outside the gateway.
 
 If the active receipt path is missing or empty while sequence-suffixed archives exist, startup fails
 with an interrupted-rotation error. Do not delete the archives or start the same chain at
@@ -237,7 +239,8 @@ redacted regression case. Do not copy raw prompts into tickets or chat.
 ## SLO candidates for an evaluation
 
 - Availability: 99.9% for the gateway path.
-- Local policy overhead: p95 under 200 ms, measured without provider latency.
+- Local policy overhead: p95 under 200 ms, measured without provider latency. `deno task bench:e2e`
+  measures the gateway against an in-process echo provider on the operator's own storage.
 - Deny/transform decision errors: tracked per approved data class.
 - Receipt creation: 100% of accepted or policy-denied chat requests.
 - Raw-content logging incidents: zero.

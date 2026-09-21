@@ -47,6 +47,10 @@ export class ReceiptStore {
   #logBytes = 0;
   #activeReceiptCount = 0;
   #closing = false;
+  #pending: string[] = [];
+  #syncing: Promise<void> | undefined;
+  #waiting: Promise<void> | undefined;
+  #fault: Error | undefined;
 
   private constructor(
     private readonly options: ReceiptStoreOptions,
@@ -81,9 +85,17 @@ export class ReceiptStore {
 
   create(input: ReceiptInput): Promise<PrivacyReceipt> {
     if (this.#closing) return Promise.reject(new Error("receipt store is closed"));
-    const operation = this.#queue.then(() => this.#create(input));
-    this.#queue = operation.catch(() => undefined);
-    return operation;
+    if (this.#fault) return Promise.reject(this.#fault);
+    // Building and signing stay serialized so the chain is ordered. Waiting for
+    // durability does not: one write and one fsync commit every receipt queued
+    // while the previous commit was in flight, and each caller still resolves
+    // only after a commit that includes its own receipt.
+    const staged = this.#queue.then(() => this.#stage(input));
+    this.#queue = staged.catch(() => undefined);
+    return staged.then(async ({ receipt, durable }) => {
+      await durable;
+      return receipt;
+    });
   }
 
   get(id: string): PrivacyReceipt | undefined {
@@ -100,6 +112,7 @@ export class ReceiptStore {
   }
 
   checkpoint(): Promise<ReceiptCheckpoint> {
+    if (this.#fault) return Promise.reject(this.#fault);
     const operation = this.#queue.then(() => this.#buildCheckpoint());
     this.#queue = operation.catch(() => undefined);
     return operation;
@@ -117,6 +130,10 @@ export class ReceiptStore {
   }
 
   async #buildCheckpoint(): Promise<ReceiptCheckpoint> {
+    // A checkpoint names the durable chain head, so wait for any group fsync
+    // that has not yet covered the latest append.
+    await this.#settle();
+    if (this.#fault) throw this.#fault;
     const unsigned = {
       version: "1" as const,
       chainId: this.options.chainId,
@@ -131,7 +148,10 @@ export class ReceiptStore {
     };
   }
 
-  async #create(input: ReceiptInput): Promise<PrivacyReceipt> {
+  async #stage(
+    input: ReceiptInput,
+  ): Promise<{ receipt: PrivacyReceipt; durable: Promise<void> }> {
+    if (this.#fault) throw this.#fault;
     const findingCounts: PrivacyReceipt["findingCounts"] = {};
     for (const finding of input.findings) {
       findingCounts[finding.kind] = (findingCounts[finding.kind] ?? 0) + 1;
@@ -185,11 +205,61 @@ export class ReceiptStore {
       receiptHash,
       signature: await ed25519Sign(this.privateKey, receiptHash),
     } as PrivacyReceipt;
-    await this.#append(receipt);
+    const { durable } = await this.#append(receipt);
     this.#sequence = receipt.sequence;
     this.#previousHash = receiptHash;
     this.#remember(receipt);
-    return receipt;
+    return { receipt, durable };
+  }
+
+  // Group commit. The caller's line is already in the pending list. If a
+  // commit is scheduled but has not started it will take that line, so join
+  // it; otherwise schedule one to run after the commit in flight. A commit
+  // writes every pending line in one call and fsyncs once. A failed commit
+  // leaves the on-disk chain unknown, so it faults the store rather than
+  // letting later receipts chain onto receipts that may never have reached
+  // the disk. The stage never touches the file, so signing the next receipt
+  // proceeds while the disk is busy.
+  #commit(): Promise<void> {
+    if (!this.#file) return Promise.resolve();
+    if (this.#waiting) return this.#waiting;
+    const previous = this.#syncing ?? Promise.resolve();
+    const next: Promise<void> = previous.catch(() => undefined).then(async () => {
+      this.#waiting = undefined;
+      this.#syncing = next;
+      try {
+        if (this.#fault) throw this.#fault;
+        await this.#flushPending();
+      } catch (error) {
+        this.#fault = error instanceof Error ? error : new Error(String(error));
+        throw error;
+      } finally {
+        if (this.#syncing === next) this.#syncing = undefined;
+      }
+    });
+    this.#waiting = next;
+    return next;
+  }
+
+  async #flushPending(): Promise<void> {
+    const file = this.#file;
+    if (!file) throw new Error("receipt log is not open");
+    const lines = this.#pending;
+    this.#pending = [];
+    if (lines.length > 0) await writeAll(file, encoder.encode(lines.join("")));
+    await file.sync();
+  }
+
+  async #settle(): Promise<void> {
+    // Failures are recorded as a store fault by the commit that raised them.
+    await Promise.allSettled([this.#syncing, this.#waiting]);
+  }
+
+  // Queues one line and returns the promise for the commit that will carry it.
+  #enqueue(line: string): Promise<void> {
+    this.#pending.push(line);
+    this.#logBytes += encoder.encode(line).byteLength;
+    return this.#commit();
   }
 
   async #load(): Promise<void> {
@@ -283,18 +353,20 @@ export class ReceiptStore {
     ) throw new Error(`receipt log signature check failed at line ${line}`);
   }
 
-  async #append(receipt: PrivacyReceipt): Promise<void> {
-    if (this.options.logPath === ":memory:") return;
+  // Returns the commit promise inside an object so the async boundary does not
+  // flatten it; the caller must be able to hold it without awaiting it yet.
+  async #append(receipt: PrivacyReceipt): Promise<{ durable: Promise<void> }> {
+    if (this.options.logPath === ":memory:") return { durable: Promise.resolve() };
     const line = `${JSON.stringify(receipt)}\n`;
-    const lineBytes = new TextEncoder().encode(line).byteLength;
+    const lineBytes = encoder.encode(line).byteLength;
     if (
       this.#activeReceiptCount > 0 &&
       this.#logBytes + lineBytes > this.options.maxLogBytes
     ) {
       await this.#rotate();
     }
-    await this.#writeLine(line);
     this.#activeReceiptCount++;
+    return { durable: this.#enqueue(line) };
   }
 
   async #rotate(): Promise<void> {
@@ -312,7 +384,7 @@ export class ReceiptStore {
     this.#logBytes = 0;
     this.#activeReceiptCount = 0;
     await this.#openLog();
-    await this.#writeLine(`${JSON.stringify(checkpoint)}\n`);
+    await this.#enqueue(`${JSON.stringify(checkpoint)}\n`);
   }
 
   async #openLog(): Promise<void> {
@@ -329,24 +401,17 @@ export class ReceiptStore {
     this.#logBytes = (await this.#file.stat()).size;
   }
 
-  async #writeLine(line: string): Promise<void> {
-    if (!this.#file) throw new Error("receipt log is not open");
-    const bytes = new TextEncoder().encode(line);
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      const written = await this.#file.write(bytes.subarray(offset));
-      if (written === 0) throw new Error("receipt log write made no progress");
-      offset += written;
-    }
-    await this.#file.sync();
-    this.#logBytes += bytes.byteLength;
-  }
-
   async #closeLog(): Promise<void> {
     const file = this.#file;
     if (!file) return;
+    await this.#settle();
     this.#file = undefined;
     try {
+      if (this.#pending.length > 0 && !this.#fault) {
+        const lines = this.#pending;
+        this.#pending = [];
+        await writeAll(file, encoder.encode(lines.join("")));
+      }
       await file.sync();
     } finally {
       file.close();
@@ -358,6 +423,17 @@ export class ReceiptStore {
     while (this.#receipts.size > this.options.capacity) {
       this.#receipts.delete(this.#receipts.keys().next().value!);
     }
+  }
+}
+
+const encoder = new TextEncoder();
+
+async function writeAll(file: Deno.FsFile, bytes: Uint8Array): Promise<void> {
+  let offset = 0;
+  while (offset < bytes.byteLength) {
+    const written = await file.write(bytes.subarray(offset));
+    if (written === 0) throw new Error("receipt log write made no progress");
+    offset += written;
   }
 }
 
