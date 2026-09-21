@@ -10,4 +10,4 @@ ENV EGRYSA_CONFIG=/app/config/egrysa.container.json
 USER 65532:65532
 EXPOSE 8787
 ENTRYPOINT ["/usr/local/bin/deno"]
-CMD ["run", "--frozen", "--cached-only", "--no-prompt", "--allow-read=/app/config,/var/lib/egrysa", "--allow-write=/var/lib/egrysa", "--allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY,OPENAI_API_KEY,ANTHROPIC_API_KEY", "--allow-net=0.0.0.0:8787,api.openai.com,api.anthropic.com,localhost:11434", "/app/src/main.ts"]
+CMD ["run", "--frozen", "--cached-only", "--no-prompt", "--allow-read=/app/config,/var/lib/egrysa", "--allow-write=/var/lib/egrysa", "--allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY,OPENAI_API_KEY,ANTHROPIC_API_KEY", "--allow-net=0.0.0.0:8787,api.openai.com,api.anthropic.com,localhost:11434,127.0.0.1:11436", "/app/src/main.ts"]

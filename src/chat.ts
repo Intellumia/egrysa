@@ -4,7 +4,6 @@ import {
   type DetectorExecution,
   removeOverlaps,
 } from "./classifier.ts";
-import { REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
 import { createSurrogateState, transform } from "./surrogate.ts";
 import type { AppConfig, ChatRequest, Finding, JsonValue } from "./types.ts";
 
@@ -68,12 +67,21 @@ export async function inspectChat(chat: ChatRequest, config: AppConfig): Promise
     surface,
     result: await classifyDetailed(surface.text, config, detectors),
   })));
-  const detectorDegraded = classified.some(({ result }) => result.detectorDegraded);
+  // A detector that failed on any surface contributes nothing to the request:
+  // partial model findings would make the receipt claim coverage it did not have.
+  const degraded = new Set(
+    classified.flatMap(({ result }) =>
+      result.detectorExecutions.filter((e) => e.failureClass !== undefined).map((e) => e.id)
+    ),
+  );
+  const detectorDegraded = degraded.size > 0;
   const surfaces: TextSurface[] = classified.map(({ surface, result }) => ({
     ...surface,
     findings: detectorDegraded
       ? removeOverlaps(
-        result.findings.filter((finding) => finding.detectorId !== REFERENCE_SEMANTIC_DETECTOR_ID),
+        result.findings.filter((finding) =>
+          finding.detectorId === undefined || !degraded.has(finding.detectorId)
+        ),
       )
       : result.findings,
   }));

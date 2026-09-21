@@ -1,6 +1,6 @@
 {"id":"legal-001","scenario":"outside counsel email","prompt":"Send the draft to partner@example.com before close.","expectedKinds":["email"],"expectedDecision":"transform"}
 {"id":"finance-001","scenario":"payment card pasted into assistant","prompt":"Reconcile card 4111 1111 1111 1111 against the invoice.","expectedKinds":["credit_card"],"expectedDecision":"deny"}
-{"id":"engineering-001","scenario":"API credential in debugging prompt","prompt":"Debug this token: sk-proj-abcdefghijklmnopqrstuvwxyz123456","expectedKinds":["api_secret"],"expectedDecision":"deny"}
+{"id":"engineering-001","scenario":"API credential in debugging prompt","prompt":"Debug this token: sk-proj-{{rand:alnum:48}}","expectedKinds":["api_secret"],"expectedDecision":"deny"}
 {"id":"engineering-002","scenario":"private key in incident response","prompt":"The exposed value is -----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----","expectedKinds":["private_key"],"expectedDecision":"deny"}
 {"id":"hr-001","scenario":"US employee identifier","prompt":"Update the record for SSN 078-05-1120.","expectedKinds":["ssn"],"expectedDecision":"deny"}
 {"id":"treasury-001","scenario":"international bank account","prompt":"Prepare a transfer to GB82WEST12345698765432.","expectedKinds":["iban"],"expectedDecision":"transform"}
@@ -16,8 +16,8 @@
 {"id":"finance-002","scenario":"mastercard test number","prompt":"The synthetic card is 5555-5555-5555-4444.","expectedKinds":["credit_card"],"expectedDecision":"deny"}
 {"id":"finance-003","scenario":"amex test number","prompt":"Use test account 378282246310005 only.","expectedKinds":["credit_card"],"expectedDecision":"deny"}
 {"id":"finance-004","scenario":"discover test number","prompt":"QA fixture: 6011 1111 1111 1117.","expectedKinds":["credit_card"],"expectedDecision":"deny"}
-{"id":"engineering-003","scenario":"AWS access key","prompt":"Credential observed: AKIAIOSFODNN7EXAMPLE.","expectedKinds":["api_secret"],"expectedDecision":"deny"}
-{"id":"engineering-004","scenario":"GitHub token","prompt":"Revoke ghp_abcdefghijklmnopqrstuvwxyz123456 immediately.","expectedKinds":["api_secret"],"expectedDecision":"deny"}
+{"id":"engineering-003","scenario":"AWS access key","prompt":"Credential observed: AKIA{{rand:upperdigits:16}}.","expectedKinds":["api_secret"],"expectedDecision":"deny"}
+{"id":"engineering-004","scenario":"GitHub token","prompt":"Revoke ghp_{{rand:alnum:36}} immediately.","expectedKinds":["api_secret"],"expectedDecision":"deny"}
 {"id":"engineering-005","scenario":"RSA private key","prompt":"Found -----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY----- in the bundle.","expectedKinds":["private_key"],"expectedDecision":"deny"}
 {"id":"hr-002","scenario":"canonical SSN","prompt":"Employee tax identifier: 123-45-6789.","expectedKinds":["ssn"],"expectedDecision":"deny"}
 {"id":"hr-003","scenario":"SSN with leading zero","prompt":"Synthetic SSN 078-05-1120 belongs in the fixture.","expectedKinds":["ssn"],"expectedDecision":"deny"}
@@ -31,7 +31,7 @@
 {"id":"ma-002","scenario":"confidential target case insensitive","prompt":"What are the risks for example acquisition target?","expectedKinds":["confidential_term"],"expectedDecision":"local_only"}
 {"id":"strategy-002","scenario":"initiative with punctuation","prompt":"Project Nightingale: prepare the steering memo.","expectedKinds":["confidential_term"],"expectedDecision":"local_only"}
 {"id":"mixed-001","scenario":"email and IP","prompt":"Tell admin@example.com that 10.20.30.40 is unavailable.","expectedKinds":["email","ipv4"],"expectedDecision":"transform"}
-{"id":"mixed-002","scenario":"email and blocked secret","prompt":"Send sk-proj-abcdefghijklmnopqrstuvwxyz123456 to admin@example.com.","expectedKinds":["api_secret","email"],"expectedDecision":"deny"}
+{"id":"mixed-002","scenario":"email and blocked secret","prompt":"Send sk-proj-{{rand:alnum:48}} to admin@example.com.","expectedKinds":["api_secret","email"],"expectedDecision":"deny"}
 {"id":"mixed-003","scenario":"confidential term and email","prompt":"Email owner@example.com about Project Nightingale.","expectedKinds":["email","confidential_term"],"expectedDecision":"local_only"}
 {"id":"false-positive-003","scenario":"bare nine-digit order","prompt":"Order 123456789 is ready for dispatch.","expectedKinds":[],"expectedDecision":"deny"}
 {"id":"false-positive-004","scenario":"spaced nine-digit ticket","prompt":"Ticket 123 45 6789 is not a government identifier.","expectedKinds":[],"expectedDecision":"deny"}

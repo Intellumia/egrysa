@@ -23,8 +23,9 @@ paid enterprise layer is built.
 - Locally evaluated transformation quality, inference-risk attacks, and task-utility regression
   tests.
 - Pluggable local named-entity and secret detectors with explicit confidence policy. The
-  off-by-default OpenAI-compatible local reference detector is shipped; independent calibration and
-  additional detector implementations remain open.
+  off-by-default OpenAI-compatible local reference detector and a loopback NER sidecar with a
+  versioned detector contract are shipped; independent calibration and additional detector
+  implementations remain open.
 - Policy simulation and explainable dry-run mode.
 
 ## 0.3: enterprise evidence integration

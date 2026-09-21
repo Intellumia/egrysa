@@ -40,6 +40,11 @@ training settings are policy inputs that must be validated through contract and 
   Egrysa does not execute tools.
 - Deterministic detection for emails, phones, IPv4 addresses, IBANs, payment cards, hyphenated US
   SSNs, private keys, common API secrets, and configured confidential terms.
+- An off-by-default reference local NER detector for person names and physical addresses: a
+  purpose-built entity model in a loopback sidecar ([`tools/ner_sidecar/`](tools/ner_sidecar/)),
+  driven by a zero-dependency adapter with bounded, literal-candidate, content-free semantics.
+  Measured at 100% precision and recall on the shipped cases at 50 ms p95
+  ([EVALUATION.md](docs/EVALUATION.md)).
 - An off-by-default reference semantic detector calling only a configured local OpenAI-compatible
   endpoint for person names, physical addresses, and semantically confidential content. It is
   best-effort; measured evidence is in [EVALUATION.md](docs/EVALUATION.md).
@@ -90,8 +95,8 @@ provider/model/version, not a universal compatibility claim. See
 - Contiguous nine-digit values are not classified as SSNs. Deny-class SSN detection requires the
   canonical hyphenated form to avoid blocking ordinary identifiers.
 - IPv6 addresses are not detected in this release.
-- No remote semantic-detector option. Model findings are low precision, must match the source text
-  literally, and never replace deterministic detection as the fail-closed floor.
+- No remote semantic- or NER-detector option. Model findings are low precision, must match the
+  source text literally, and never replace deterministic detection as the fail-closed floor.
 
 ## Why open source first
 

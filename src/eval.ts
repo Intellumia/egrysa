@@ -1,5 +1,6 @@
 import { classify } from "./classifier.ts";
 import { loadConfig } from "./config.ts";
+import { loadCorpus } from "./corpus.ts";
 import { decide } from "./policy.ts";
 import {
   loadSemanticEvalCases,
@@ -18,9 +19,8 @@ interface EvalCase {
 }
 
 const config = await loadConfig("config/egrysa.example.json");
-const rows = (await Deno.readTextFile("evals/cases.jsonl")).trim().split("\n").map((line) =>
-  JSON.parse(line) as EvalCase
-);
+const corpus = await loadCorpus<EvalCase>("evals/cases.jsonl");
+const rows = corpus.cases;
 const counts = Object.fromEntries(
   FINDING_KINDS.map((kind) => [kind, { tp: 0, fp: 0, fn: 0 }]),
 ) as Record<FindingKind, { tp: number; fp: number; fn: number }>;
@@ -79,6 +79,7 @@ const macroPrecision = measured.reduce((sum, value) => sum + value.precision, 0)
 const macroRecall = measured.reduce((sum, value) => sum + value.recall, 0) / measured.length;
 const report = {
   suite: "egrysa-synthetic-v2",
+  corpusDigest: corpus.digest,
   cases: rows.length,
   exactKindCaseAccuracy: exactKindCases / rows.length,
   decisionAccuracy: correctDecisions / rows.length,

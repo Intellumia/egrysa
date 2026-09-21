@@ -5,6 +5,7 @@
 // remains `deno task eval` over `evals/cases.jsonl`.
 import { classify, createDetectors } from "../src/classifier.ts";
 import { loadConfig } from "../src/config.ts";
+import { loadCorpus } from "../src/corpus.ts";
 import { decide } from "../src/policy.ts";
 import { FINDING_KINDS, type FindingKind, SENSITIVITIES, type Sensitivity } from "../src/types.ts";
 
@@ -35,7 +36,11 @@ if (requested !== undefined && !SENSITIVITIES.includes(requested as Sensitivity)
   console.error(`--sensitivity must be one of ${SENSITIVITIES.join(", ")}`);
   Deno.exit(2);
 }
-const loaded = await loadConfig("config/egrysa.example.json");
+// --config=<path> measures a different configuration, for example one with the
+// local NER detector enabled; the task grants network access only to loopback.
+const configPath = Deno.args.find((arg) => arg.startsWith("--config="))?.split("=")[1] ??
+  "config/egrysa.example.json";
+const loaded = await loadConfig(configPath);
 const config = requested
   ? { ...loaded, policy: { ...loaded.policy, sensitivity: requested as Sensitivity } }
   : loaded;
@@ -44,8 +49,18 @@ const detectors = createDetectors(config);
 const corpusPath = Deno.args.find((arg) => arg.startsWith("--corpus="))?.split("=")[1] ??
   "evals/adversarial.jsonl";
 const suite = corpusPath.includes("scenarios") ? "egrysa-scenarios-v1" : "egrysa-adversarial-v1";
-const cases = (await Deno.readTextFile(corpusPath))
-  .trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as Case);
+// Fixtures carry seeded placeholders for credential-shaped values; loadCorpus
+// expands them, so the committed file never holds a string a scanner would
+// flag while the measurement runs on values a scanner would.
+const corpus = await loadCorpus<Case>(corpusPath);
+const cases = corpus.cases;
+// --dump=<path> writes the expanded cases, for cross-checking with an
+// external scanner. It needs write permission the task does not grant, so it
+// is an explicit operator choice.
+const dumpPath = Deno.args.find((arg) => arg.startsWith("--dump="))?.split("=")[1];
+if (dumpPath) {
+  await Deno.writeTextFile(dumpPath, cases.map((item) => JSON.stringify(item)).join("\n") + "\n");
+}
 
 const counts = new Map<string, { tp: number; fp: number; fn: number }>();
 const byCategory = new Map<string, { total: number; detected: number }>();
@@ -126,8 +141,11 @@ const detected = cases.length - undisclosedMisses.length - disclosedMisses.lengt
 const report = {
   suite,
   corpus: corpusPath,
+  corpusDigest: corpus.digest,
   sensitivity,
-  note: "Measurement only. Not a release gate. Semantic detector off, shipped example config.",
+  note: `Measurement only. Not a release gate. Config ${configPath}; semantic detector ${
+    loaded.semanticDetector?.enabled ? "on" : "off"
+  }, NER detector ${loaded.nerDetector?.enabled ? "on" : "off"}.`,
   cases: cases.length,
   detected,
   undisclosedMisses: undisclosedMisses.length,
@@ -151,7 +169,8 @@ if (Deno.args.includes("--json")) {
 } else {
   const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
   console.log(`\nEgrysa adversarial detector report (${report.suite}, sensitivity=${sensitivity})`);
-  console.log(`${report.note}\n`);
+  console.log(`${report.note}`);
+  console.log(`Corpus ${corpusPath} sha256 ${corpus.digest}\n`);
   console.log(
     `  cases ${report.cases}   fully detected ${detected}   ` +
       `undisclosed misses ${report.undisclosedMisses}   ` +

@@ -1,7 +1,9 @@
 import { InboundAuth } from "./auth.ts";
 import { BodySizeLimitError, readBoundedBytes } from "./bounded.ts";
 import { inspectChat, transformChat } from "./chat.ts";
-import { resolveSemanticDetectorConfig } from "./config.ts";
+import { resolveNerDetectorConfig, resolveSemanticDetectorConfig } from "./config.ts";
+import { OPTIONAL_DETECTOR_IDS } from "./classifier.ts";
+import { createNerDetector, REFERENCE_NER_DETECTOR_ID } from "./ner.ts";
 import { Metrics } from "./metrics.ts";
 import { decide } from "./policy.ts";
 import {
@@ -42,6 +44,7 @@ export class Gateway {
 
   static async create(config: AppConfig): Promise<Gateway> {
     createSemanticDetector(config);
+    createNerDetector(config);
     return new Gateway(
       config,
       await InboundAuth.fromEnvironment(),
@@ -105,8 +108,7 @@ export class Gateway {
       const inspection = await inspectChat(chat, this.config);
       const findings = inspection.findings;
       const detectorReceipt = this.recordDetectorEvidence(inspection);
-      const semantic = resolveSemanticDetectorConfig(this.config);
-      if (inspection.detectorDegraded && semantic.onDetectorFailure === "deny") {
+      if (this.requiredDetectorUnavailable(inspection)) {
         this.metrics.denied++;
         const receipt = await this.receipts.create({
           requestCanonical: originalJson,
@@ -121,7 +123,7 @@ export class Gateway {
         return problem(
           403,
           "policy_denied",
-          "The required local semantic detector was unavailable.",
+          "A required local detector was unavailable.",
           receipt.id,
         );
       }
@@ -349,13 +351,28 @@ export class Gateway {
     return json({ object: "list", data });
   }
 
+  // Each optional detector carries its own failure mode. A request is refused
+  // only when a detector that failed is one the operator configured to deny on.
+  private requiredDetectorUnavailable(
+    inspection: Awaited<ReturnType<typeof inspectChat>>,
+  ): boolean {
+    const failed = new Set(
+      inspection.detectorExecutions.filter((e) => e.failureClass !== undefined).map((e) => e.id),
+    );
+    return (failed.has(REFERENCE_SEMANTIC_DETECTOR_ID) &&
+      resolveSemanticDetectorConfig(this.config).onDetectorFailure === "deny") ||
+      (failed.has(REFERENCE_NER_DETECTOR_ID) &&
+        resolveNerDetectorConfig(this.config).onDetectorFailure === "deny");
+  }
+
   private recordDetectorEvidence(
     inspection: Awaited<ReturnType<typeof inspectChat>>,
   ): { detectors?: ReceiptDetector[]; detectorDegraded?: boolean } {
-    const semanticEnabled = resolveSemanticDetectorConfig(this.config).enabled;
+    const modelDetectorEnabled = resolveSemanticDetectorConfig(this.config).enabled ||
+      resolveNerDetectorConfig(this.config).enabled;
     for (
       const execution of inspection.detectorExecutions.filter((candidate) =>
-        candidate.id === REFERENCE_SEMANTIC_DETECTOR_ID
+        OPTIONAL_DETECTOR_IDS.has(candidate.id)
       )
     ) {
       this.metrics.recordDetectorRun(
@@ -373,10 +390,10 @@ export class Gateway {
     }
     if (!inspection.detectorDegraded) {
       this.metrics.semanticFindings += inspection.findings.filter((finding) =>
-        finding.detectorId === REFERENCE_SEMANTIC_DETECTOR_ID
+        finding.detectorId !== undefined && OPTIONAL_DETECTOR_IDS.has(finding.detectorId)
       ).length;
     }
-    if (!semanticEnabled) return {};
+    if (!modelDetectorEnabled) return {};
     return {
       detectors: inspection.detectorExecutions.map((execution) => ({
         id: execution.id,
