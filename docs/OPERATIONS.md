@@ -30,6 +30,14 @@ sequence 1. Inspect the newest archive and externally retained checkpoint, then 
 newest archive back to the configured active path or explicitly start a new chain with both a new
 `receiptChainId` and a new empty log path.
 
+## Configuration schema
+
+`api/config.schema.json` is the frozen configuration schema (version 1) for editor completion and CI
+validation. Every object in it is closed: an unknown field at any level fails startup with the field
+named, so a typo cannot silently disable a control. `schemaVersion` is optional and, if present,
+must be `1`. Fields are added within a version and never renamed or removed; see the
+[compatibility policy](COMPATIBILITY.md) for how retirements and breaking changes are announced.
+
 ## Container boundary
 
 The image sets `EGRYSA_CONFIG=/app/config/egrysa.container.json`. That configuration matches the

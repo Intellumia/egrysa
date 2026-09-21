@@ -159,6 +159,8 @@ export interface NerDetectorConfig {
 }
 
 export interface AppConfig {
+  // Configuration schema version; absent means 1. See docs/COMPATIBILITY.md.
+  schemaVersion?: 1;
   listen: { hostname: string; port: number };
   maxRequestBytes: number;
   maxResponseBytes?: number;
