@@ -22,7 +22,10 @@ See [`docs/CONFORMANCE.md`](../docs/CONFORMANCE.md) for the report and contribut
 Contribution rules:
 
 1. Prefer adversarial and false-positive cases over repetitions of obvious formats.
-2. Use reserved documentation values for payment cards, network addresses, and credentials.
+2. Use reserved documentation values for payment cards and network addresses. Write credentials as
+   seeded placeholders, `{{rand:<alphabet>:<length>}}`, expanded by `src/corpus.ts` at load time:
+   the committed file then holds nothing a scanner flags, while the measurement runs on values a
+   scanner takes seriously. Every report prints the corpus SHA-256 it measured.
 3. Label independently when a fixture is intended to support an external evaluation claim.
 4. Keep model-answer utility and semantic-inference suites separate from this exact-token baseline.
 5. Record known limitations; a passing implementation-authored corpus is not real-world recall.

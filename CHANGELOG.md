@@ -40,6 +40,12 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Corpus credential fixtures are seeded placeholders, `{{rand:<alphabet>:<length>}}`, expanded by
+  the loader from the case id, so the committed corpora hold no token-shaped strings while every
+  evaluation runs on random-looking values a scanner would flag. Reports print the corpus SHA-256,
+  and `tools/adversarial_report.ts --dump=<path>` writes the expanded cases for cross-checking with
+  an external scanner. Against gitleaks on the same expanded fixtures: Egrysa 30/30 credential and
+  key cases, gitleaks 23/30, neither firing on a negative control.
 - Encoded and obfuscated forms of known values are detected. The pattern detector now also scans
   normalised views of each text surface: percent-encoding, JSON escapes, HTML entities, markup
   inside a value, backslash line continuations, full-width and dash look-alikes, zero-width

@@ -25,6 +25,16 @@ is why the single most important rule is the first one.
    IBAN checksum, fix it and record that you did.
 4. **Use fabricated values only.** Never real personal data, never a real credential, never a real
    customer document. If you would not publish it, do not write it.
+5. **Write credentials as placeholders, never as literal strings.** A fabricated token that looks
+   fake, a sequential alphabet or an `EXAMPLE` marker, is ignored by every scanner and by anyone
+   comparing tools, so it measures nothing; a fabricated token that looks real cannot be committed,
+   because push protection blocks it. Write the vendor prefix literally and the random part as
+   `{{rand:<alphabet>:<length>}}`, and the loader fills it in with random-looking characters when
+   the corpus runs. For example `ghp_{{rand:alnum:36}}`, `AKIA{{rand:upperdigits:16}}`,
+   `sk_live_51{{rand:alnum:24}}`, `postgres://app:{{rand:alnum:20}}@db.internal/app`. Alphabets:
+   `digits`, `lower`, `upper`, `alpha`, `alnum`, `upperdigits`, `hex`, `base64`, `urlsafe`. Use the
+   vendor's documented length. This applies only to credentials; write emails, phones, cards, and
+   IBANs as ordinary fabricated values.
 
 ## What to write
 
@@ -124,6 +134,10 @@ your clean documents, and every miss by name.
 
 Run it once. Read the result. Do not go back and adjust cases.
 
+The report's header prints the SHA-256 of your corpus file. Record it: it is what ties the numbers
+you hand back to the exact file you authored, and it is how a reviewer later confirms nothing was
+changed after the run.
+
 ## What to hand back
 
 The corpus file, and a short provenance note answering:
@@ -134,6 +148,18 @@ The corpus file, and a short provenance note answering:
    documentation, or personal knowledge.
 4. The date of authoring, and the date of the first run.
 5. Whether any case was revised after a run, and which.
+6. The corpus SHA-256 the report printed on the first run.
+
+A template:
+
+```text
+Author: <name>, <role or organisation>, relationship to the project: <none / customer / contractor>
+Read the implementation before authoring: <no / yes, which files>
+Value sources: <specifications, vendor docs, personal knowledge>
+Authored: <date>    First run: <date>
+Revisions after a run: <none / case ids and reasons>
+Corpus SHA-256: <from the report header>
+```
 
 That note is what makes the resulting number credible. Without it the corpus is just another file,
 and a reviewer is right to discount it.

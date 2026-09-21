@@ -95,17 +95,31 @@ on the assignment (`aws_secret_access_key=…`) rather than the value. Because t
 misfire on benign configuration, what happens to its findings is governed by `policy.sensitivity`
 below rather than fixed here.
 
-This gap has independent corroboration from two scanners the project already runs. Publishing the
-corpus was blocked by GitHub push protection, which identified the synthetic Slack, Stripe, and
-Twilio values as credentials. The Trivy secret scanner in the CI security baseline then flagged nine
-findings in the same file, including GitHub fine-grained and OAuth tokens and a GitLab token. Both
-general-purpose scanners detect formats that Egrysa's own detector passes through.
+**Credential fixtures are realistic, and the committed file is not.** A fixture that a scanner
+ignores because it is obviously fake, a sequential alphabet or an `EXAMPLE-ONLY` marker, measures
+nothing: general-purpose scanners allowlist exactly those shapes, and an earlier version of this
+corpus scored 23% against gitleaks for that reason while the same tool scored 73% against
+random-looking values in the same formats. The committed fixtures therefore carry placeholders,
+`{{rand:<alphabet>:<length>}}`, which the corpus loader expands into random-looking values seeded by
+the case id. The same case expands to the same bytes on every machine, so every number here is
+reproducible, and the committed file contains nothing a scanner recognises except the private-key
+envelopes, which is the one allowance left in [`.trivy/secret.yaml`](../.trivy/secret.yaml). The
+report prints the corpus SHA-256 so a result is bound to the exact corpus version that produced it.
 
-That result also explains a necessary exception. A credential fixture that a secret scanner ignores
-would not be testing anything, so this corpus unavoidably trips secret scanning. The security
-baseline therefore carries an allowance scoped to the single path `evals/adversarial.jsonl`, defined
-in [`.trivy/secret.yaml`](../.trivy/secret.yaml). Every other file is scanned normally, the fixture
-values are structurally non-functional, and GitHub push protection stays enabled repository-wide.
+**Cross-checked against an independent scanner.** With the expanded corpus written out
+(`--dump=<path>`, which needs write permission the task does not grant) and scanned per case by
+gitleaks 8.30:
+
+| Scanner       | Credential and key cases found | Negative controls that fired |
+| ------------- | ------------------------------ | ---------------------------- |
+| Egrysa        | 30/30                          | 0/19                         |
+| gitleaks 8.30 | 23/30                          | 0/19                         |
+
+gitleaks misses the password inside a Postgres, Basic-auth, or Twilio URL, the OpenSSH and PGP key
+envelopes, a base64-encoded key, and a key inside a Terraform variable block. That is not a claim
+that Egrysa is the better secret scanner; gitleaks has far more rules and verifies live secrets. It
+is the evidence that Egrysa's credential floor is competitive on the formats it claims, measured on
+values a scanner takes seriously.
 
 **Encoded and obfuscated forms are decoded before matching.** The patterns run over the literal text
 and then over normalised views of it: percent-encoding, JSON `\uXXXX` escapes, HTML entities, markup
