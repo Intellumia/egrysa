@@ -17,8 +17,9 @@ Suite: `egrysa-adversarial-v1`, 102 cases, semantic detector off, shipped exampl
 
 Egrysa's deterministic detection is **precise, and narrow by class**. When it fires, it is almost
 always right, and it now fires on encoded, escaped, marked-up, and obfuscated forms of the values it
-knows. It still does not fire at all on person names, physical addresses, or IPv6 addresses without
-the semantic detector.
+knows. It does not fire on person names or physical addresses by itself; those need the
+off-by-default local NER detector, measured [below](#with-the-local-ner-detector-enabled). Nothing
+detects IPv6 addresses.
 
 If your control objective is "no confidential value ever reaches a provider," this release does not
 meet it and is not claimed to. If your objective is "the common, well-formed cases are caught, with
@@ -222,7 +223,27 @@ These are recorded in the README and are not defects:
 - IPv6 addresses in any form, including IPv4-mapped and bracketed URL authority forms.
 - Contiguous nine-digit values as SSNs. The canonical hyphenated form is required, deliberately, to
   avoid blocking ordinary identifiers.
-- Person names and physical addresses, which require the off-by-default semantic detector.
+- Person names and physical addresses, which require the off-by-default local NER or semantic
+  detector.
+
+## With the local NER detector enabled
+
+The reference NER sidecar ([`tools/ner_sidecar/`](../tools/ner_sidecar/README.md)) was measured live
+through the adapter on an Apple M4, CPU only, model `urchade/gliner_multi_pii-v1` at the pinned
+revision, `minConfidence` 0.5:
+
+| Suite                                       | Result                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `deno task eval:ner`, 18 semantic cases     | `person_name` 4/4, `physical_address` 4/4, 0/6 negatives fired, 100% precision, p95 49.5 ms |
+| Scenario corpus, `--config` with NER on     | 66/67 fully detected, 0/32 false positives; the one miss is IPv6                            |
+| Adversarial corpus, `--config` with NER on  | 93/102, 0/19 false positives                                                                |
+| One request through the gateway to the stub | name, address, and email all surrogated; 43 ms p50 end to end                               |
+
+The sidecar filters the model's candidates before answering: a name must be two to four capitalised
+tokens with no digits and no role noun ("the patient", "staff member"), and an address must carry a
+digit and at least three tokens. Without that filter the same model recalls everything and fires on
+one negative control in three. The filter is tuned on these corpora and should be measured on yours;
+the independent corpus brief asks for names and addresses to be labelled for exactly this reason.
 
 ## How to read these numbers
 

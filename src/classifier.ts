@@ -4,6 +4,7 @@ import {
   type LocalDetector,
   runDetectorDetailed,
 } from "./detectors.ts";
+import { createNerDetector, REFERENCE_NER_DETECTOR_ID } from "./ner.ts";
 import { textVariants } from "./normalize.ts";
 import { createSemanticDetector, REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
 import type { AppConfig, Finding, FindingKind } from "./types.ts";
@@ -107,6 +108,14 @@ const patterns: Array<{
   },
 ];
 
+// Detectors that run a local model. They are optional, may fail on a given
+// request, and their failure is recorded rather than fatal; the deterministic
+// floor never degrades.
+export const OPTIONAL_DETECTOR_IDS: ReadonlySet<string> = new Set([
+  REFERENCE_SEMANTIC_DETECTOR_ID,
+  REFERENCE_NER_DETECTOR_ID,
+]);
+
 export async function classify(
   text: string,
   config: AppConfig,
@@ -151,7 +160,7 @@ export async function classifyDetailed(
     } catch (error) {
       if (
         error instanceof DetectorExecutionError &&
-        error.detectorId === REFERENCE_SEMANTIC_DETECTOR_ID
+        OPTIONAL_DETECTOR_IDS.has(error.detectorId)
       ) {
         return {
           id: error.detectorId,
@@ -165,9 +174,12 @@ export async function classifyDetailed(
       throw error;
     }
   }));
-  const detectorDegraded = executions.some((execution) => execution.failureClass !== undefined);
+  const degraded = new Set(
+    executions.filter((execution) => execution.failureClass !== undefined).map((e) => e.id),
+  );
+  const detectorDegraded = degraded.size > 0;
   const findings = executions.flatMap((execution) => execution.values).filter((finding) =>
-    !detectorDegraded || finding.detectorId !== REFERENCE_SEMANTIC_DETECTOR_ID
+    finding.detectorId === undefined || !degraded.has(finding.detectorId)
   );
   return {
     findings: removeOverlaps(findings),
@@ -178,10 +190,12 @@ export async function classifyDetailed(
 
 export function createDetectors(config: AppConfig): LocalDetector[] {
   const semantic = createSemanticDetector(config);
+  const ner = createNerDetector(config);
   return [
     patternDetector((config.policy.sensitivity ?? "balanced") === "strict"),
     sensitiveTermDetector(config),
     ...(semantic ? [semantic] : []),
+    ...(ner ? [ner] : []),
   ];
 }
 

@@ -233,7 +233,7 @@ function parseCandidates(
   return candidates;
 }
 
-function splitText(text: string, maxBytes: number): TextChunk[] {
+export function splitText(text: string, maxBytes: number): TextChunk[] {
   if (encoder.encode(text).byteLength <= maxBytes) return [{ text }];
   const chunks: TextChunk[] = [];
   let start = 0;

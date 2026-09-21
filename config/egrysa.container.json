@@ -69,6 +69,19 @@
       "semantic_confidential"
     ]
   },
+  "nerDetector": {
+    "enabled": false,
+    "baseUrl": "http://127.0.0.1:11436",
+    "timeoutMs": 2000,
+    "totalTimeoutMs": 6000,
+    "maxInputBytes": 16384,
+    "minConfidence": 0.5,
+    "onDetectorFailure": "degrade",
+    "kinds": [
+      "person_name",
+      "physical_address"
+    ]
+  },
   "policy": {
     "defaultProvider": "openai",
     "localProvider": "local",

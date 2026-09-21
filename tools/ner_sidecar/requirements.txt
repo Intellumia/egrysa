@@ -1,0 +1,10 @@
+# Pinned to the versions the reference measurements were taken with.
+# Python 3.12. CPU only; no GPU is required for the reference model.
+gliner==0.2.29
+torch==2.14.0
+transformers==5.16.1
+huggingface-hub==1.32.0
+tiktoken==0.14.0
+sentencepiece==0.2.2
+protobuf==7.36.2
+numpy==2.5.3

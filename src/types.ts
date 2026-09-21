@@ -92,6 +92,21 @@ export interface SemanticDetectorConfig {
   kinds?: SemanticFindingKind[];
 }
 
+export const NER_FINDING_KINDS = ["person_name", "physical_address"] as const;
+
+export type NerFindingKind = typeof NER_FINDING_KINDS[number];
+
+export interface NerDetectorConfig {
+  enabled: boolean;
+  baseUrl?: string;
+  timeoutMs?: number;
+  totalTimeoutMs?: number;
+  maxInputBytes?: number;
+  minConfidence?: number;
+  onDetectorFailure?: "degrade" | "deny";
+  kinds?: NerFindingKind[];
+}
+
 export interface AppConfig {
   listen: { hostname: string; port: number };
   maxRequestBytes: number;
@@ -103,6 +118,7 @@ export interface AppConfig {
   receiptChainId: string;
   providers: ProviderConfig[];
   semanticDetector?: SemanticDetectorConfig;
+  nerDetector?: NerDetectorConfig;
   policy: {
     defaultProvider: string;
     localProvider: string;

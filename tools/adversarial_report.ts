@@ -36,7 +36,11 @@ if (requested !== undefined && !SENSITIVITIES.includes(requested as Sensitivity)
   console.error(`--sensitivity must be one of ${SENSITIVITIES.join(", ")}`);
   Deno.exit(2);
 }
-const loaded = await loadConfig("config/egrysa.example.json");
+// --config=<path> measures a different configuration, for example one with the
+// local NER detector enabled; the task grants network access only to loopback.
+const configPath = Deno.args.find((arg) => arg.startsWith("--config="))?.split("=")[1] ??
+  "config/egrysa.example.json";
+const loaded = await loadConfig(configPath);
 const config = requested
   ? { ...loaded, policy: { ...loaded.policy, sensitivity: requested as Sensitivity } }
   : loaded;
@@ -139,7 +143,9 @@ const report = {
   corpus: corpusPath,
   corpusDigest: corpus.digest,
   sensitivity,
-  note: "Measurement only. Not a release gate. Semantic detector off, shipped example config.",
+  note: `Measurement only. Not a release gate. Config ${configPath}; semantic detector ${
+    loaded.semanticDetector?.enabled ? "on" : "off"
+  }, NER detector ${loaded.nerDetector?.enabled ? "on" : "off"}.`,
   cases: cases.length,
   detected,
   undisclosedMisses: undisclosedMisses.length,
