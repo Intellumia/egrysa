@@ -52,6 +52,8 @@ training settings are policy inputs that must be validated through contract and 
   endpoint for person names, physical addresses, and semantically confidential content. It is
   best-effort; measured evidence is in [EVALUATION.md](docs/EVALUATION.md).
 - Four decisions: `deny`, `local_only`, `transform`, and explicitly approved `allow_raw`.
+- Surrogate style and scope by policy: sentinel tokens or format-preserving synthetic values, fresh
+  per request or stable per workload through a keyed hash with nothing stored.
 - Opt-in prompt-injection detection through the same sidecar, as a low-precision blocked class so
   the sensitivity switch decides whether a flagged request is routed locally, refused, or held.
 - Per-workload rate limiting with `Retry-After`, and a read-only auditor role whose keys can read
@@ -101,7 +103,8 @@ provider/model/version, not a universal compatibility claim. See
 - No files, audio, or images: each creates a separate egress and injection boundary.
 - No cross-provider prompt splitting: it increases the number of recipients and can destroy
   semantics. It requires an evidence-backed decomposition protocol before release.
-- No durable prompt memory. The surrogate map exists only for the request lifetime.
+- No durable prompt memory. The surrogate map exists only for the request lifetime; workload-scoped
+  surrogates are re-derived from a keyed hash on each request, not stored.
 - No claim that a natural-language “forget” instruction changes provider retention. Contractual
   controls and supported API parameters are used instead.
 - No transparent employee identity header is forwarded to providers.

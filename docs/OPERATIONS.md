@@ -129,6 +129,35 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Surrogate style and scope
+
+`policy.surrogates` (globally or per workload) chooses how transformable values are replaced before
+egress.
+
+```json
+{ "policy": { "surrogates": { "style": "synthetic", "scope": "workload" } } }
+```
+
+**Style.** `token` (default) replaces a value with a sentinel such as
+`__EGRYSA_EMAIL_0001_ab12cd__`. It is unmistakable to a reviewer and lets the residue audit fail
+closed if a provider mutates it. `synthetic` replaces a value with one of the same shape drawn from
+reserved ranges: a name from a fabricated list, an address under `example.net`, a `555-01xx` phone
+number, a TEST-NET or `2001:db8::` address, a locally administered MAC, a checksum-valid `GBxxSYNT…`
+IBAN. A model treats these as ordinary text, which improves answer quality, and local recomposition
+restores the real values. Two costs: the residue audit cannot recognise a mutated synthetic value,
+so a reply that says "Mr. Voss" instead of "Alder Voss" loses the surname rather than failing
+closed, and a reviewer reading provider-side logs sees plausible-looking data rather than obvious
+placeholders. Blocked classes are never surrogated in either style.
+
+**Scope.** `request` (default) issues fresh surrogates on every request. `workload` derives the
+surrogate for a value from a keyed hash (the receipt fingerprint key, the workload id, the kind, and
+the value), so the same value maps to the same surrogate on every request from that workload, across
+turns and across gateway restarts, with nothing stored: the map still exists only for the request
+lifetime. This keeps a multi-turn conversation coherent for the model and lets provider prompt
+caching hit. The cost is linkability: a provider can tell that two requests from a workload mention
+the same entity, without learning what it is. Choose `workload` scope only where that is acceptable,
+and rotate the fingerprint key to break the linkage.
+
 ## Rate limiting and roles
 
 `policy.rateLimit` sets a token bucket per workload: `requestsPerMinute` is the sustained rate and

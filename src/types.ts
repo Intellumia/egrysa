@@ -155,6 +155,11 @@ export interface AppConfig {
     // What to do with sensitive data the provider sends back. Findings are
     // made before recomposition, so they are provider-originated.
     response?: ResponsePolicyConfig;
+    // How transformable values are replaced before egress. Style: a sentinel
+    // token, or a synthetic value in the same shape. Scope: fresh per request,
+    // or the same surrogate for the same value across a workload's requests,
+    // derived by keyed hash and never stored.
+    surrogates?: SurrogatePolicyConfig;
     // Requests per minute a workload may submit, with an optional burst
     // (default: the per-minute rate). Absent means unlimited by the gateway.
     rateLimit?: RateLimitConfig;
@@ -174,12 +179,21 @@ export interface WorkloadPolicy {
   sensitivity?: Sensitivity;
   response?: ResponsePolicyConfig;
   rateLimit?: RateLimitConfig;
+  surrogates?: SurrogatePolicyConfig;
   defaultProvider?: string;
   // Providers this workload may use, by id. A request naming another
   // provider, or a default outside the list, is refused.
   allowedProviders?: string[];
   // Models this workload may request, across providers.
   allowedModels?: string[];
+}
+
+export type SurrogateStyle = "token" | "synthetic";
+export type SurrogateScope = "request" | "workload";
+
+export interface SurrogatePolicyConfig {
+  style?: SurrogateStyle;
+  scope?: SurrogateScope;
 }
 
 export interface RateLimitConfig {

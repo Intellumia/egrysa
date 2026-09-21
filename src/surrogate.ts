@@ -1,5 +1,6 @@
-import { randomToken } from "./crypto.ts";
-import { type Finding, FINDING_KINDS } from "./types.ts";
+import { hmacSha256, randomToken } from "./crypto.ts";
+import { synthesize } from "./synthetic.ts";
+import { type Finding, FINDING_KINDS, type SurrogateStyle } from "./types.ts";
 
 export interface Transformation {
   text: string;
@@ -15,10 +16,60 @@ export interface SurrogateState {
   mapping: Map<string, string>;
   reusable: Map<string, string>;
   sequence: number;
+  style: SurrogateStyle;
 }
 
-export function createSurrogateState(): SurrogateState {
-  return { mapping: new Map(), reusable: new Map(), sequence: 0 };
+export function createSurrogateState(style: SurrogateStyle = "token"): SurrogateState {
+  return { mapping: new Map(), reusable: new Map(), sequence: 0, style };
+}
+
+export interface DurableKey {
+  secret: string;
+  workloadId: string;
+}
+
+// Workload-scoped surrogates: the same original maps to the same surrogate
+// on every request from a workload, derived from a keyed hash of the original
+// and never stored anywhere. Pre-computed here because hashing is asynchronous
+// and transformation is not.
+export async function prepareDurableSurrogates(
+  state: SurrogateState,
+  findings: Finding[],
+  allowedKinds: Set<string>,
+  key: DurableKey,
+): Promise<void> {
+  for (const finding of findings) {
+    if (!allowedKinds.has(finding.kind)) continue;
+    const identity = `${finding.kind}:${finding.value}`;
+    if (state.reusable.has(identity)) continue;
+    const digest = await hmacSha256(
+      key.secret,
+      `egrysa/surrogate/v1\0${key.workloadId}\0${finding.kind}\0${finding.value}`,
+    );
+    const bytes = Uint8Array.from(digest.match(/../g)!.map((pair) => parseInt(pair, 16)));
+    let token = state.style === "synthetic" ? synthesize(finding.kind, bytes) : null;
+    token ??= `__EGRYSA_${finding.kind.toUpperCase()}_${digest.slice(0, 12)}__`;
+    // A synthetic value that already stands for another original in this
+    // request, or that occurs in the text on its own, would recompose wrongly.
+    if (state.mapping.has(token) && state.mapping.get(token) !== finding.value) {
+      token = `__EGRYSA_${finding.kind.toUpperCase()}_${digest.slice(12, 24)}__`;
+    }
+    state.reusable.set(identity, token);
+    state.mapping.set(token, finding.value);
+  }
+}
+
+function freshToken(state: SurrogateState, finding: Finding, text: string): string {
+  if (state.style === "synthetic") {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const candidate = synthesize(finding.kind, bytes);
+      if (candidate && !state.mapping.has(candidate) && !text.includes(candidate)) return candidate;
+    }
+  }
+  return `__EGRYSA_${finding.kind.toUpperCase()}_${String(++state.sequence).padStart(4, "0")}_${
+    randomToken(6)
+  }__`;
 }
 
 export function transform(
@@ -39,9 +90,7 @@ export function transform(
     const identity = `${finding.kind}:${finding.value}`;
     let token = state.reusable.get(identity);
     if (!token) {
-      token = `__EGRYSA_${finding.kind.toUpperCase()}_${
-        String(++state.sequence).padStart(4, "0")
-      }_${randomToken(6)}__`;
+      token = freshToken(state, finding, text);
       state.reusable.set(identity, token);
       state.mapping.set(token, finding.value);
     }

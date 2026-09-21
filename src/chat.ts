@@ -4,7 +4,7 @@ import {
   type DetectorExecution,
   removeOverlaps,
 } from "./classifier.ts";
-import { createSurrogateState, transform } from "./surrogate.ts";
+import { createSurrogateState, type SurrogateState, transform } from "./surrogate.ts";
 import type { AppConfig, ChatRequest, Finding, JsonValue } from "./types.ts";
 
 interface TextSurface {
@@ -101,9 +101,9 @@ export function transformChat(
   chat: ChatRequest,
   inspection: ChatInspection,
   allowedKinds: Set<string>,
+  state: SurrogateState = createSurrogateState(),
 ): TransformedChat {
   const cloned = structuredClone(chat);
-  const state = createSurrogateState();
   for (const surface of inspection.surfaces.filter((candidate) => candidate.transformable)) {
     const before = state.mapping.size;
     const result = transform(surface.text, surface.findings, allowedKinds, state);

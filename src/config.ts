@@ -114,6 +114,7 @@ export function validateConfig(config: AppConfig): void {
   validatePolicyTaxonomy(config.policy);
   validateResponsePolicy(config.policy);
   validateRateLimit(config.policy);
+  validateSurrogatePolicy(config.policy);
   validateWorkloads(config);
   if (
     config.policy.sensitivity !== undefined &&
@@ -307,6 +308,7 @@ const WORKLOAD_FIELDS = new Set([
   "sensitivity",
   "response",
   "rateLimit",
+  "surrogates",
   "defaultProvider",
   "allowedProviders",
   "allowedModels",
@@ -376,10 +378,39 @@ function validateWorkloads(config: AppConfig): void {
       validatePolicyTaxonomy(merged.policy);
       validateResponsePolicy(merged.policy);
       validateRateLimit(merged.policy);
+      validateSurrogatePolicy(merged.policy);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`workloads.${workloadId}: ${message}`);
     }
+  }
+}
+
+export function resolveSurrogatePolicy(
+  policy: AppConfig["policy"],
+): { style: "token" | "synthetic"; scope: "request" | "workload" } {
+  return {
+    style: policy.surrogates?.style ?? "token",
+    scope: policy.surrogates?.scope ?? "request",
+  };
+}
+
+function validateSurrogatePolicy(policy: AppConfig["policy"]): void {
+  const raw = policy.surrogates;
+  if (raw === undefined) return;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("policy.surrogates must be an object");
+  }
+  for (const key of Object.keys(raw)) {
+    if (!["style", "scope"].includes(key)) {
+      throw new Error(`policy.surrogates has unknown field: ${key}`);
+    }
+  }
+  if (raw.style !== undefined && !["token", "synthetic"].includes(raw.style)) {
+    throw new Error("policy.surrogates.style must be token or synthetic");
+  }
+  if (raw.scope !== undefined && !["request", "workload"].includes(raw.scope)) {
+    throw new Error("policy.surrogates.scope must be request or workload");
   }
 }
 
