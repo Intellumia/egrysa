@@ -77,13 +77,19 @@ emitted.
 - Receipts contain workload attribution, a keyed nonce-bound request fingerprint, finding counts,
   decision, provider/model identifiers, and chain/signature values only. They contain no raw prompt
   or response content.
-- Denials retain version-2/version-3 policy receipts. Provider attempts use version-4 receipts:
-  non-streaming success records `egress:completed`, invocation failure records `egress:failed`, and
-  streaming records `egress:started` after upstream response headers arrive. A receipt is signed and
-  chained when the response begins, so a stream cannot later be amended to `completed`; stream
-  completion attestation is not claimed. This applies to every provider now that Anthropic streams
-  natively, where previously buffered emulation could record `egress:completed` because upstream
-  inference had already finished.
+- Provider responses are scanned before recomposition with the same detectors as requests. At that
+  point the customer's values are still surrogate tokens, so every response finding is
+  provider-originated. `policy.response` decides per class: blocked classes redact (default) or
+  deny, transformable classes pass (default) or redact. The scan result is recorded in the receipt
+  as counts and an action, never as text.
+- Denials retain version-2/version-3 policy receipts. Provider attempts use version-5 receipts,
+  which add `response` evidence to the version-4 shape (version-4 logs still verify): non-streaming
+  success records `egress:completed`, invocation failure records `egress:failed`, and streaming
+  records `egress:started` after upstream response headers arrive. A receipt is signed and chained
+  when the response begins, so a stream cannot later be amended to `completed`; stream completion
+  attestation is not claimed. This applies to every provider now that Anthropic streams natively,
+  where previously buffered emulation could record `egress:completed` because upstream inference had
+  already finished.
 - When semantic detection is enabled, receipts add only detector IDs/versions and a degradation
   boolean. No receipt records finding text or request/response content.
 - Provider credentials are read from named environment variables and never accepted in request

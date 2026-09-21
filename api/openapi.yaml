@@ -192,8 +192,8 @@ components:
       ]
       properties:
         version:
-          enum: ["2", "3", "4"]
-          description: Version 3 adds semantic-detector evidence; version 4 adds egress outcome for provider invocations.
+          enum: ["2", "3", "4", "5"]
+          description: Version 3 adds semantic-detector evidence; version 4 adds egress outcome for provider invocations; version 5 adds response-scan evidence.
         id: { type: string, format: uuid }
         chainId: { type: string }
         sequence: { type: integer, minimum: 1 }
@@ -218,6 +218,14 @@ components:
         detectorDegraded:
           type: boolean
           description: True when semantic detection failed and no semantic findings were used.
+        response:
+          type: object
+          description: Present and required for version 5. What the scan of the provider's response found, before recomposition, and what was done about it. Streams are signed before their text exists and record unscanned.
+          additionalProperties: false
+          required: [findingCounts, action]
+          properties:
+            findingCounts: { type: object, additionalProperties: { type: integer, minimum: 1 } }
+            action: { enum: [none, redacted, denied, unscanned] }
         egress:
           enum: [completed, failed, started]
           description: Present and required for version 4. Native streaming receipts attest started egress; buffered emulation records completed upstream egress.

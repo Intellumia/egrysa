@@ -13,6 +13,8 @@ import {
   type ProviderInvocation,
 } from "./providers.ts";
 import { ReceiptStore } from "./receipts.ts";
+import { observeResponseText, scanResponse, UNSCANNED } from "./response.ts";
+import { createDetectors } from "./classifier.ts";
 import { recomposeOpenAiStream, RecompositionError } from "./streaming.ts";
 import { hasSurrogateResidueAfterRecomposition, recomposeChecked } from "./surrogate.ts";
 import { createSemanticDetector, REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
@@ -245,17 +247,42 @@ export class Gateway {
           this.config.maxResponseBytes ?? 32 * 1024 * 1024,
         );
       } catch (error) {
-        const receipt = await this.receipts.create({ ...receiptContext, egress: "failed" });
+        const receipt = await this.receipts.create({
+          ...receiptContext,
+          egress: "failed",
+          response: UNSCANNED,
+        });
         receiptId = receipt.id;
         providerInvocationFailed = true;
         throw error;
       }
+      // Response scanning runs before the receipt is signed and before
+      // recomposition, so the receipt records what the provider sent back and
+      // the customer's own restored values are never counted.
+      const detectors = createDetectors(this.config);
+      const scan = invocation.type === "stream"
+        ? null
+        : await scanResponse(invocation.data, this.config, detectors);
+      if (scan) this.recordResponseScan(scan.evidence);
       const receipt = await this.receipts.create({
         ...receiptContext,
         egress: invocation.type === "stream" && !invocation.emulated ? "started" : "completed",
+        response: scan ? scan.evidence : UNSCANNED,
       });
       receiptId = receipt.id;
+      if (scan?.denied) {
+        return problem(
+          403,
+          "response_denied",
+          "The provider response contained data in a blocked class.",
+          receipt.id,
+        );
+      }
       if (invocation.type === "stream") {
+        // A stream's receipt is already signed, so the text that passes is
+        // observed and recorded in metrics and a content-free log event.
+        let observed = "";
+        const limit = this.config.maxResponseBytes ?? 32 * 1024 * 1024;
         const stream = recomposeOpenAiStream(
           invocation.response.body!,
           aggregateMap,
@@ -263,7 +290,13 @@ export class Gateway {
             if (error instanceof RecompositionError) this.metrics.recompositionFailures++;
             else this.metrics.providerErrors++;
           },
-          invocation.complete,
+          () => {
+            invocation.complete();
+            void this.observeStream(observed, detectors, receipt.id);
+          },
+          (text) => {
+            if (observed.length < limit) observed += text;
+          },
         );
         return new Response(stream, {
           status: 200,
@@ -278,7 +311,7 @@ export class Gateway {
         });
       }
       let residueDetected = false;
-      const recomposed = mapResponseContent(invocation.data, (text) => {
+      const recomposed = mapResponseContent(scan!.data, (text) => {
         const result = recomposeChecked(text, aggregateMap);
         residueDetected ||= result.residueDetected;
         return result.text;
@@ -349,6 +382,40 @@ export class Gateway {
       }).map((id) => ({ id, object: "model", created: 0, owned_by: "egrysa" }))
     );
     return json({ object: "list", data });
+  }
+
+  private recordResponseScan(
+    evidence: { findingCounts: Record<string, number | undefined>; action: string },
+  ): void {
+    const total = Object.values(evidence.findingCounts).reduce<number>(
+      (sum, n) => sum + (n ?? 0),
+      0,
+    );
+    this.metrics.responseFindings += total;
+    if (evidence.action === "redacted") this.metrics.responseRedactions++;
+    if (evidence.action === "denied") this.metrics.responseDenials++;
+  }
+
+  private async observeStream(
+    text: string,
+    detectors: ReturnType<typeof createDetectors>,
+    receiptId: string,
+  ): Promise<void> {
+    try {
+      const counts = await observeResponseText(text, this.config, detectors);
+      const total = Object.values(counts).reduce<number>((sum, n) => sum + (n ?? 0), 0);
+      if (total === 0) return;
+      this.metrics.responseFindings += total;
+      console.error(JSON.stringify({
+        level: "warn",
+        event: "stream_response_findings",
+        receiptId,
+        findingCounts: counts,
+      }));
+    } catch {
+      // Observation is best effort; a detector failure here changes nothing
+      // the caller already received.
+    }
   }
 
   // Each optional detector carries its own failure mode. A request is refused

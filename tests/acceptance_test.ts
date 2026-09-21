@@ -267,7 +267,7 @@ Deno.test("local semantic detector transforms egress and emits verifiable attrib
     const receipt = await (await gateway.handle(
       new Request(`http://gateway/v1/receipts/${receiptId}`, { headers: authHeaders() }),
     )).json();
-    assert(receipt.version === "4" && receipt.egress === "completed", "semantic receipt version");
+    assert(receipt.version === "5" && receipt.egress === "completed", "semantic receipt version");
     assert(receipt.decision === "transform", "semantic receipt decision");
     assert(receipt.findingCounts.person_name === 1, "semantic receipt finding count");
     assert(receipt.detectorDegraded === false, "semantic receipt degradation");

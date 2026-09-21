@@ -232,7 +232,7 @@ Deno.test("gateway transforms before egress and recomposes after inference", asy
         headers: { authorization: "Bearer a-test-client-key-that-is-long-enough" },
       }),
     )).json();
-    if (receipt.version !== "4" || receipt.egress !== "completed") {
+    if (receipt.version !== "5" || receipt.egress !== "completed") {
       throw new Error("successful provider invocation was not attested as completed egress");
     }
   } finally {
@@ -519,7 +519,7 @@ Deno.test("gateway records failed provider invocation before returning its recei
       }),
     )).json();
     if (
-      receipt.version !== "4" || receipt.egress !== "failed" || checkpoint.sequence !== 1 ||
+      receipt.version !== "5" || receipt.egress !== "failed" || checkpoint.sequence !== 1 ||
       receipt.sequence !== 1
     ) throw new Error("failed invocation advanced the chain with an incorrect egress claim");
   } finally {
@@ -818,7 +818,7 @@ Deno.test("gateway safely recomposes surrogate tokens split across SSE chunks", 
         headers: { authorization: "Bearer a-test-client-key-that-is-long-enough" },
       }),
     )).json();
-    if (receipt.version !== "4" || receipt.egress !== "started") {
+    if (receipt.version !== "5" || receipt.egress !== "started") {
       throw new Error("streaming invocation was not attested as started egress");
     }
   } finally {

@@ -9,6 +9,9 @@ export function recomposeOpenAiStream(
   mapping: ReadonlyMap<string, string>,
   onFailure: (error: unknown) => void,
   onComplete: () => void,
+  // Sees every provider text delta before recomposition, so an observer can
+  // scan what the provider produced without seeing the customer's values.
+  onText: (text: string) => void = () => {},
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -58,6 +61,7 @@ export function recomposeOpenAiStream(
               mapping,
               template,
               (value) => template = value,
+              onText,
             );
             if (event) output.push(event);
           }
@@ -70,6 +74,7 @@ export function recomposeOpenAiStream(
               mapping,
               template,
               (value) => template = value,
+              onText,
             );
             if (event) output.push(event);
           }
@@ -175,6 +180,7 @@ function processFrame(
   mapping: ReadonlyMap<string, string>,
   template: Record<string, unknown> | null,
   setTemplate: (value: Record<string, unknown>) => void,
+  onText: (text: string) => void = () => {},
 ): string {
   const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart()).join("\n");
@@ -203,6 +209,7 @@ function processFrame(
     if (!delta || typeof delta !== "object" || Array.isArray(delta)) continue;
     const typedDelta = delta as Record<string, unknown>;
     if (typeof typedDelta.content === "string") {
+      onText(typedDelta.content);
       typedDelta.content = state(states, `${choiceIndex}:content`, mapping).push(
         typedDelta.content,
       );
@@ -216,6 +223,7 @@ function processFrame(
       if (!fn || typeof fn !== "object" || Array.isArray(fn)) continue;
       const typedFunction = fn as Record<string, unknown>;
       if (typeof typedFunction.arguments === "string") {
+        onText(typedFunction.arguments);
         typedFunction.arguments = state(
           states,
           `${choiceIndex}:tool:${toolIndex}`,

@@ -127,7 +127,23 @@ export interface AppConfig {
     transformKinds: FindingKind[];
     sensitiveTerms: Array<{ term: string; label: string }>;
     sensitivity?: Sensitivity;
+    // What to do with sensitive data the provider sends back. Findings are
+    // made before recomposition, so they are provider-originated.
+    response?: ResponsePolicyConfig;
   };
+}
+
+export interface ResponsePolicyConfig {
+  scan?: boolean;
+  blocked?: "redact" | "deny";
+  transformable?: "pass" | "redact";
+}
+
+export type ResponseAction = "none" | "redacted" | "denied" | "unscanned";
+
+export interface ResponseEvidence {
+  findingCounts: Partial<Record<FindingKind, number>>;
+  action: ResponseAction;
 }
 
 export interface ChatMessage {
@@ -220,7 +236,19 @@ export interface PrivacyReceiptV4 extends PrivacyReceiptBase {
   detectorDegraded?: boolean;
 }
 
-export type PrivacyReceipt = PrivacyReceiptV2 | PrivacyReceiptV3 | PrivacyReceiptV4;
+export interface PrivacyReceiptV5 extends PrivacyReceiptBase {
+  version: "5";
+  egress: EgressOutcome;
+  response: ResponseEvidence;
+  detectors?: ReceiptDetector[];
+  detectorDegraded?: boolean;
+}
+
+export type PrivacyReceipt =
+  | PrivacyReceiptV2
+  | PrivacyReceiptV3
+  | PrivacyReceiptV4
+  | PrivacyReceiptV5;
 
 export interface ReceiptCheckpoint {
   version: "1";
