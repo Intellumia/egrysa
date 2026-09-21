@@ -15,8 +15,10 @@ Suite: `egrysa-adversarial-v1`, 102 cases, semantic detector off, shipped exampl
 
 ## The short version
 
-Egrysa's deterministic detection is **precise but narrow**. When it fires, it is almost always
-right. There are substantial categories of sensitive data it does not fire on at all.
+Egrysa's deterministic detection is **precise, and narrow by class**. When it fires, it is almost
+always right, and it now fires on encoded, escaped, marked-up, and obfuscated forms of the values it
+knows. It still does not fire at all on person names, physical addresses, or IPv6 addresses without
+the semantic detector.
 
 If your control objective is "no confidential value ever reaches a provider," this release does not
 meet it and is not claimed to. If your objective is "the common, well-formed cases are caught, with
@@ -26,9 +28,9 @@ signed evidence of every decision," that is supported today.
 
 | Measure                                  | `balanced` (default) | `strict` |
 | ---------------------------------------- | -------------------- | -------- |
-| Cases fully detected                     | 77/102               | 79/102   |
-| Undisclosed misses                       | 17                   | 15       |
-| Misses covered by a documented exclusion | 8                    | 8        |
+| Cases fully detected                     | 91/102               | 93/102   |
+| Undisclosed misses                       | 1                    | 1        |
+| Misses covered by a documented exclusion | 10                   | 8        |
 | False positives on negative controls     | **0/19**             | **4/19** |
 | `ssn` recall                             | 25%                  | 75%      |
 | `ssn` precision                          | 100%                 | 42.9%    |
@@ -41,7 +43,8 @@ positives for them, dropping `ssn` precision from 100% to 42.9%. Neither column 
 for every deployment, which is why it is configuration rather than a fixed behavior.
 
 For reference, the floor as first measured, before any of this work and on the original 98-case
-corpus, was 55 detected with 35 undisclosed misses.
+corpus, was 55 detected with 35 undisclosed misses. Before encoded and obfuscated forms were
+normalised it was 77 detected with 17 undisclosed misses on this corpus.
 
 Per kind, lowest recall first:
 
@@ -50,12 +53,12 @@ Per kind, lowest recall first:
 | `person_name`       | 0%     | —         |
 | `physical_address`  | 0%     | —         |
 | `ssn`               | 25%    | 100%      |
-| `email`             | 43.8%  | 100%      |
-| `ipv4`              | 66.7%  | 66.7%     |
-| `credit_card`       | 80%    | 100%      |
-| `api_secret`        | 92.3%  | 100%      |
-| `private_key`       | 100%   | 100%      |
+| `credit_card`       | 93.3%  | 100%      |
+| `ipv4`              | 100%   | 75%       |
 | `phone`             | 100%   | 85.7%     |
+| `email`             | 100%   | 100%      |
+| `api_secret`        | 100%   | 100%      |
+| `private_key`       | 100%   | 100%      |
 | `iban`              | 100%   | 100%      |
 | `confidential_term` | 100%   | 100%      |
 
@@ -67,9 +70,9 @@ By category:
 | Payment card formats | 11/11      | 11/11    |
 | Realistic contexts   | 12/12      | 12/12    |
 | Negative controls    | 19/19      | 15/19    |
-| Internationalization | 9/10       | 9/10     |
-| Obfuscation          | 1/10       | 3/10     |
-| Encoding             | 0/7        | 0/7      |
+| Internationalization | 10/10      | 10/10    |
+| Obfuscation          | 7/10       | 9/10     |
+| Encoding             | 7/7        | 7/7      |
 
 ## What this means in practice
 
@@ -104,13 +107,23 @@ baseline therefore carries an allowance scoped to the single path `evals/adversa
 in [`.trivy/secret.yaml`](../.trivy/secret.yaml). Every other file is scanned normally, the fixture
 values are structurally non-functional, and GitHub push protection stays enabled repository-wide.
 
-**Encoded values are not decoded.** Detection operates on the literal text. URL-encoded, base64,
-JSON-escaped, and HTML-entity representations pass through unmatched. This matters because pasted
-logs and request captures routinely contain encoded values.
+**Encoded and obfuscated forms are decoded before matching.** The patterns run over the literal text
+and then over normalised views of it: percent-encoding, JSON `\uXXXX` escapes, HTML entities, markup
+wrapped around or inside a value, backslash line continuations, full-width and dash look-alikes,
+zero-width characters, `[at]`, `(dot)`, and spaced separators, and base64 runs whose bytes decode to
+ordinary text. A match in a normalised view is reported against the original bytes, so the surrogate
+replaces exactly what was present, `alex%40example.com` or the base64 blob itself, and recomposition
+restores it unchanged. The decoded text is never persisted. Every encoding case in the corpus and
+seven of ten obfuscation cases are now caught, `email` recall rose from 43.8% to 100%, and the
+nineteen negative controls, which include a base64 fixture that decodes to prose, a commit hash, and
+an image digest, still produce no finding.
 
-**Obfuscated values are not normalized.** `alex [at] example [dot] com`, unicode hyphens in a card
-number, and space- or period-separated SSNs are not matched. Deliberate evasion by a motivated
-insider is not in scope for a deterministic layer.
+**What still passes through.** A card number written partly in words
+(`four one one one then
+1111 1111 1111`) is not matched; the number words are not decoded because
+doing so would fire on ordinary prose. Space- and period-separated SSNs remain a strict-only
+pattern, for the reason given under `policy.sensitivity` below. Deliberate evasion by a motivated
+insider beyond these shapes is not in scope for a deterministic layer.
 
 **Severity downgrade on URL credentials, since corrected.** The corpus surfaced a case where a
 password in a URL authority, as in `postgres://user:password@host`, matched the email pattern. The
@@ -185,7 +198,7 @@ detection requires the canonical hyphenated form. Under `strict` it lifts `ssn` 
 42.9%. An operator choosing `strict` is choosing exactly that trade.
 
 A strict-only pattern changes what the detector emits, so the pattern detector reports a distinct
-version, `1.2.0+strict`, in the receipt. A receipt therefore records which ruleset produced its
+version, `1.3.0+strict`, in the receipt. A receipt therefore records which ruleset produced its
 findings without needing the configuration that ran.
 
 ## Documented exclusions behaving as documented
@@ -240,7 +253,7 @@ Per kind, every deterministic class reached 100% recall **and** 100% precision: 
 person names, physical addresses, and IPv6.
 
 Read the two corpora together. On realistic traffic the floor is strong. Under deliberate pressure
-it is not, and the difference between 64/67 here and 77/102 there is the honest measure of how much
+it is not, and the difference between 64/67 here and 91/102 there is the honest measure of how much
 of the gap is reachable by ordinary use versus by adversarial construction.
 
 ### What this corpus found that the adversarial one could not
