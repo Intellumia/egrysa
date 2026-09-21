@@ -38,8 +38,11 @@ training settings are policy inputs that must be validated through contract and 
   recomposition ([adapter code](src/providers.ts), [stream tests](tests/providers_test.ts)).
 - Function-tool definitions, assistant tool calls, and tool results as inspected text surfaces;
   Egrysa does not execute tools.
-- Deterministic detection for emails, phones, IPv4 addresses, IBANs, payment cards, hyphenated US
-  SSNs, private keys, common API secrets, and configured confidential terms.
+- Deterministic detection for emails, phones, IPv4 and IPv6 addresses, MAC addresses, IBANs, payment
+  cards, hyphenated US SSNs, Aadhaar and Indian PAN, UK National Insurance and NHS numbers, labelled
+  passport, routing, account and birth-date values, cryptocurrency wallets, vehicle identification
+  numbers, private keys, common API secrets, and configured confidential terms. Every identifier
+  with a published checksum is validated against it.
 - An off-by-default reference local NER detector for person names and physical addresses: a
   purpose-built entity model in a loopback sidecar ([`tools/ner_sidecar/`](tools/ner_sidecar/)),
   driven by a zero-dependency adapter with bounded, literal-candidate, content-free semantics.
@@ -97,7 +100,6 @@ provider/model/version, not a universal compatibility claim. See
 - No transparent employee identity header is forwarded to providers.
 - Contiguous nine-digit values are not classified as SSNs. Deny-class SSN detection requires the
   canonical hyphenated form to avoid blocking ordinary identifiers.
-- IPv6 addresses are not detected in this release.
 - No remote semantic- or NER-detector option. Model findings are low precision, must match the
   source text literally, and never replace deterministic detection as the fail-closed floor.
 

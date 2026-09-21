@@ -51,7 +51,11 @@ DETECTOR_VERSION = "0.1.0"
 # wording matters: "person" recalls every name in the evaluation set while a
 # longer phrasing recalled none. The map keys are what the model is asked for;
 # the values are Egrysa finding kinds.
-LABELS = {"person": "person_name", "street address": "physical_address"}
+LABELS = {
+    "person": "person_name",
+    "street address": "physical_address",
+    "organization": "organization",
+}
 
 # The model fires "person" on role nouns. These are filtered rather than
 # lowered in threshold, because a real name and "the patient" score alike.
@@ -79,6 +83,13 @@ def keep(kind: str, text: str) -> bool:
         return all(token[0].isupper() for token in tokens)
     if kind == "physical_address":
         return bool(re.search(r"\d", value)) and len(value.split()) >= 3
+    if kind == "organization":
+        tokens = value.split()
+        if not tokens or len(tokens) > 6 or len(value) < 3:
+            return False
+        if all(token.lower().strip(".,") in ROLE_WORDS for token in tokens):
+            return False
+        return any(character.isupper() for character in value)
     return False
 
 

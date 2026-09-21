@@ -40,6 +40,17 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Twelve further data classes in the deterministic floor: `ipv6` (full, compressed, IPv4-mapped, and
+  bracketed URL forms), `mac_address`, `date_of_birth` (labelled), `aadhaar` (Verhoeff),
+  `india_pan`, `uk_nino`, `nhs_number` (labelled, modulus 11), `passport` (labelled), `bank_account`
+  (checksum-validated routing numbers; labelled account numbers at low precision), `crypto_wallet`
+  (Ethereum and bech32 at high precision, legacy base58 at low precision), `vin` (check digit), and
+  `organization` through the NER sidecar. Every kind must have a policy action, so **a configuration
+  written for an earlier release must add the new kinds** to `blockKinds` or `transformKinds` before
+  the gateway starts; the shipped examples place the six identity and financial classes under
+  `blockKinds` and the rest under `transformKinds`. The regression suite grows to 61 cases and the
+  adversarial corpus to 119, with 25 negative controls and no false positives. Closes the IPv6
+  exclusion (#19).
 - Provider responses are scanned with the same detectors before recomposition, so anything found is
   provider-originated and the customer's own restored values are never counted. `policy.response`
   chooses the action per class: a blocked class is redacted to `[REDACTED:<KIND>]` by default or the

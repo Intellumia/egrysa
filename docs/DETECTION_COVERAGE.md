@@ -10,16 +10,16 @@ Reproduce every number here with:
 deno task eval:adversarial
 ```
 
-Suite: `egrysa-adversarial-v1`, 102 cases, semantic detector off, shipped example configuration. Add
+Suite: `egrysa-adversarial-v1`, 119 cases, semantic detector off, shipped example configuration. Add
 `--sensitivity=strict` or `--sensitivity=review` to measure a different mode.
 
 ## The short version
 
 Egrysa's deterministic detection is **precise, and narrow by class**. When it fires, it is almost
 always right, and it now fires on encoded, escaped, marked-up, and obfuscated forms of the values it
-knows. It does not fire on person names or physical addresses by itself; those need the
-off-by-default local NER detector, measured [below](#with-the-local-ner-detector-enabled). Nothing
-detects IPv6 addresses.
+knows, across twenty-one deterministic classes including national identifiers with checksum
+validation. It does not fire on person names, physical addresses, or organisations by itself; those
+need the off-by-default local NER detector, measured [below](#with-the-local-ner-detector-enabled).
 
 If your control objective is "no confidential value ever reaches a provider," this release does not
 meet it and is not claimed to. If your objective is "the common, well-formed cases are caught, with
@@ -29,10 +29,10 @@ signed evidence of every decision," that is supported today.
 
 | Measure                                  | `balanced` (default) | `strict` |
 | ---------------------------------------- | -------------------- | -------- |
-| Cases fully detected                     | 91/102               | 93/102   |
+| Cases fully detected                     | 113/119              | 115/119  |
 | Undisclosed misses                       | 1                    | 1        |
-| Misses covered by a documented exclusion | 10                   | 8        |
-| False positives on negative controls     | **0/19**             | **4/19** |
+| Misses covered by a documented exclusion | 5                    | 3        |
+| False positives on negative controls     | **0/25**             | **4/25** |
 | `ssn` recall                             | 25%                  | 75%      |
 | `ssn` precision                          | 100%                 | 42.9%    |
 
@@ -70,16 +70,20 @@ By category:
 | Credential formats   | 25/25      | 25/25    |
 | Payment card formats | 11/11      | 11/11    |
 | Realistic contexts   | 12/12      | 12/12    |
-| Negative controls    | 19/19      | 15/19    |
+| Negative controls    | 25/25      | 21/25    |
 | Internationalization | 10/10      | 10/10    |
 | Obfuscation          | 7/10       | 9/10     |
 | Encoding             | 7/7        | 7/7      |
+| Network addressing   | 6/6        | 6/6      |
+| Government identity  | 6/6        | 6/6      |
+| Financial identity   | 4/4        | 4/4      |
 
 ## What this means in practice
 
-**Zero false positives across 19 negative controls, under the default.** Git SHAs, image digests,
-UUIDs, ISBNs, order numbers, semantic versions, and digit runs failing Luhn are all left alone.
-Egrysa is unlikely to block legitimate work through spurious matches.
+**Zero false positives across 25 negative controls, under the default.** Git SHAs, image digests,
+UUIDs, ISBNs, order numbers, semantic versions, digit runs failing Luhn, clock times, C++ scope
+operators, transaction hashes, ten-character product codes, and dates that are not birth dates are
+all left alone. Egrysa is unlikely to block legitimate work through spurious matches.
 
 **Well-formed values in realistic contexts are caught.** Stack traces, log lines, CSV rows, SQL
 inserts, Kubernetes manifests, and support tickets all classify correctly.
@@ -203,7 +207,10 @@ fresh hold on the next attempt.
 **Active in every mode:** a credential identified by its assignment rather than its own format, such
 as `aws_secret_access_key=…`, `password: …`, or `client_secret=…`. This closed the last
 credential-format gap, and it is exactly the pattern that misfires on benign configuration, which is
-why its handling is a policy choice rather than a fixed behavior.
+why its handling is a policy choice rather than a fixed behavior. Two of the classes added in
+alpha.5 follow the same rule: a bank account number named only by its label (routing numbers are
+checksum-validated and high precision), and a legacy base58 Bitcoin address, which looks like any
+base58 identifier of the same length.
 
 **Active only under `strict`:** SSNs written with space or period separators, such as `123 45 6789`.
 Ordinary ticket, invoice, part, and sensor numbers take the same shape. Enabling this by default
@@ -220,7 +227,6 @@ findings without needing the configuration that ran.
 
 These are recorded in the README and are not defects:
 
-- IPv6 addresses in any form, including IPv4-mapped and bracketed URL authority forms.
 - Contiguous nine-digit values as SSNs. The canonical hyphenated form is required, deliberately, to
   avoid blocking ordinary identifiers.
 - Person names and physical addresses, which require the off-by-default local NER or semantic
