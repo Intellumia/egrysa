@@ -33,7 +33,9 @@ training settings are policy inputs that must be validated through contract and 
 
 ## Demonstrated in this repository
 
-- OpenAI-compatible `POST /v1/chat/completions` ingress and `GET /v1/models` discovery.
+- OpenAI-compatible `POST /v1/chat/completions` ingress and `GET /v1/models` discovery, and an
+  Anthropic Messages API ingress at `POST /v1/messages` that runs the same pipeline and answers in
+  the Anthropic message, event-stream, and error shapes.
 - Native SSE for OpenAI-compatible and Anthropic providers, both using bounded holdback
   recomposition ([adapter code](src/providers.ts), [stream tests](tests/providers_test.ts)).
 - Function-tool definitions, assistant tool calls, and tool results as inspected text surfaces;

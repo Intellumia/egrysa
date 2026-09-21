@@ -36,6 +36,21 @@ paths:
           description: OpenAI-compatible union of configured model allowlists
           content:
             application/json: { schema: { type: object } }
+  /v1/messages:
+    post:
+      summary: Anthropic Messages API ingress
+      description: |
+        Accepts the Anthropic Messages request shape (system, text, tool_use and tool_result
+        blocks, tools, tool_choice, stream, max_tokens, temperature, top_p) and runs the same
+        policy, transformation, receipt, and provider pipeline as /v1/chat/completions.
+        Answers as an Anthropic message object, as the Anthropic event stream, or as the Anthropic
+        error object with a receipt_id field. top_k, stop_sequences, metadata, and non-text blocks
+        are refused with 400. The x-egrysa-receipt and x-egrysa-decision headers are present.
+      security: [{ bearer: [] }]
+      responses:
+        "200": { description: Anthropic message object or event stream }
+        "400": { description: Anthropic error object, invalid_request_error }
+        "403": { description: Anthropic error object, permission_error, with receipt_id }
   /v1/chat/completions:
     post:
       operationId: createChatCompletion

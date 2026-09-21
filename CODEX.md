@@ -39,7 +39,8 @@ provider-control verification, hardware appliance, or third-party certification.
 5. Do not add a dependency where a reviewed platform primitive is sufficient.
 6. Every new input modality, tool, streaming path, memory store, and provider is a new threat
    boundary requiring tests and documentation.
-7. Preserve the OpenAI-compatible ingress unless a versioned breaking change is approved.
+7. Preserve the OpenAI-compatible ingress unless a versioned breaking change is approved. The
+   Anthropic Messages ingress translates to and from it and adds no policy of its own.
 
 ## Release gates
 
