@@ -44,7 +44,7 @@ below.
 | -------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | How are callers authenticated?         | Bearer workload keys, attributed per workload            | Long, operator-issued keys held in environment variables                                                                             |
 | Is there SSO, OIDC, or MFA?            | **No**                                                   | OIDC and workload identity are roadmap items. Enterprise IAM belongs in front of the gateway today                                   |
-| Is there role-based access control?    | **No**                                                   | There is one caller role. Policy differentiates by data class, not by user                                                           |
+| Is there role-based access control?    | **No**                                                   | There is one caller role. Policy differentiates by workload and by data class, not by user                                           |
 | Is access to the gateway rate limited? | **No**                                                   | Workload keys attribute resource use but do not throttle it. Place a rate-limiting ingress in front for untrusted-adjacent workloads |
 | Who can change enforcement policy?     | Anyone who can change the configuration file and restart | The policy file is not signed. Configuration change control is the customer's                                                        |
 

@@ -1,7 +1,11 @@
 import { InboundAuth } from "./auth.ts";
 import { BodySizeLimitError, readBoundedBytes } from "./bounded.ts";
 import { inspectChat, transformChat } from "./chat.ts";
-import { resolveNerDetectorConfig, resolveSemanticDetectorConfig } from "./config.ts";
+import {
+  resolveNerDetectorConfig,
+  resolveSemanticDetectorConfig,
+  resolveWorkloadConfig,
+} from "./config.ts";
 import { OPTIONAL_DETECTOR_IDS } from "./classifier.ts";
 import { createNerDetector, REFERENCE_NER_DETECTOR_ID } from "./ner.ts";
 import { Metrics } from "./metrics.ts";
@@ -47,9 +51,22 @@ export class Gateway {
   static async create(config: AppConfig): Promise<Gateway> {
     createSemanticDetector(config);
     createNerDetector(config);
+    const auth = await InboundAuth.fromEnvironment();
+    // A policy for a workload that has no inbound key is probably a typo.
+    // It is not fatal, because keys and configuration are managed separately.
+    const known = new Set(auth.workloadIds());
+    for (const workloadId of Object.keys(config.workloads ?? {})) {
+      if (!known.has(workloadId)) {
+        console.error(JSON.stringify({
+          level: "warn",
+          event: "workload_policy_without_key",
+          workloadId,
+        }));
+      }
+    }
     return new Gateway(
       config,
-      await InboundAuth.fromEnvironment(),
+      auth,
       await ReceiptStore.open({
         fingerprintKey: Deno.env.get("EGRYSA_RECEIPT_FINGERPRINT_KEY") ?? "",
         privateKeyPkcs8: Deno.env.get("EGRYSA_RECEIPT_ED25519_PRIVATE_KEY") ?? "",
@@ -89,7 +106,9 @@ export class Gateway {
         ? json(receipt)
         : problem(404, "not_found", "Receipt not found.");
     }
-    if (request.method === "GET" && url.pathname === "/v1/models") return this.models();
+    if (request.method === "GET" && url.pathname === "/v1/models") {
+      return this.models(auth.workloadId);
+    }
     if (request.method !== "POST" || url.pathname !== "/v1/chat/completions") {
       return problem(404, "not_found", "Route not found.");
     }
@@ -97,6 +116,9 @@ export class Gateway {
   }
 
   private async chat(request: Request, workloadId: string): Promise<Response> {
+    // Everything below decides against the workload's effective policy.
+    const config = resolveWorkloadConfig(this.config, workloadId);
+    const workload = this.config.workloads?.[workloadId];
     this.metrics.requests++;
     this.metrics.inFlight++;
     let receiptId: string | undefined;
@@ -106,8 +128,11 @@ export class Gateway {
       const validation = validateChat(body);
       if (validation) return problem(422, "unsupported_request", validation);
       const chat = body as ChatRequest;
+      if (workload?.allowedModels && !workload.allowedModels.includes(chat.model)) {
+        return problem(422, "unsupported_request", "model is not approved for this workload");
+      }
       const originalJson = JSON.stringify(chat);
-      const inspection = await inspectChat(chat, this.config);
+      const inspection = await inspectChat(chat, config);
       const findings = inspection.findings;
       const detectorReceipt = this.recordDetectorEvidence(inspection);
       if (this.requiredDetectorUnavailable(inspection)) {
@@ -130,18 +155,28 @@ export class Gateway {
         );
       }
       const requestedProvider = request.headers.get("x-egrysa-provider");
-      let policy = decide(findings, requestedProvider, this.config);
+      let policy = decide(findings, requestedProvider, config);
+      if (
+        workload?.allowedProviders && policy.provider &&
+        !workload.allowedProviders.includes(policy.provider.id)
+      ) {
+        policy = {
+          decision: "deny",
+          provider: null,
+          reason: "provider is not approved for this workload",
+        };
+      }
       const untransformableTransformFindings = inspection.untransformableFindings.filter((
         finding,
-      ) => this.config.policy.transformKinds.includes(finding.kind));
+      ) => config.policy.transformKinds.includes(finding.kind));
       if (
         policy.decision === "transform" && untransformableTransformFindings.length > 0 &&
         untransformableTransformFindings.every((finding) =>
           finding.precision !== undefined && finding.precision !== "high"
         )
       ) {
-        const localProvider = this.config.providers.find((provider) =>
-          provider.id === this.config.policy.localProvider && provider.local
+        const localProvider = config.providers.find((provider) =>
+          provider.id === config.policy.localProvider && provider.local
         ) ?? null;
         policy = localProvider
           ? {
@@ -220,7 +255,7 @@ export class Gateway {
       let aggregateMap = new Map<string, string>();
       let transformedFields = 0;
       if (policy.decision === "transform") {
-        const allowed = new Set(this.config.policy.transformKinds);
+        const allowed = new Set(config.policy.transformKinds);
         const transformed = transformChat(chat, inspection, allowed);
         outbound = transformed.chat;
         aggregateMap = transformed.mapping;
@@ -259,10 +294,10 @@ export class Gateway {
       // Response scanning runs before the receipt is signed and before
       // recomposition, so the receipt records what the provider sent back and
       // the customer's own restored values are never counted.
-      const detectors = createDetectors(this.config);
+      const detectors = createDetectors(config);
       const scan = invocation.type === "stream"
         ? null
-        : await scanResponse(invocation.data, this.config, detectors);
+        : await scanResponse(invocation.data, config, detectors);
       if (scan) this.recordResponseScan(scan.evidence);
       const receipt = await this.receipts.create({
         ...receiptContext,
@@ -292,7 +327,7 @@ export class Gateway {
           },
           () => {
             invocation.complete();
-            void this.observeStream(observed, detectors, receipt.id);
+            void this.observeStream(observed, detectors, receipt.id, config);
           },
           (text) => {
             if (observed.length < limit) observed += text;
@@ -372,15 +407,21 @@ export class Gateway {
     }
   }
 
-  private models(): Response {
+  private models(workloadId: string): Response {
+    const workload = this.config.workloads?.[workloadId];
     const seen = new Set<string>();
-    const data = this.config.providers.flatMap((provider) =>
-      provider.allowedModels.filter((model) => {
-        if (seen.has(model)) return false;
-        seen.add(model);
-        return true;
-      }).map((id) => ({ id, object: "model", created: 0, owned_by: "egrysa" }))
-    );
+    const data = this.config.providers
+      .filter((provider) =>
+        !workload?.allowedProviders || workload.allowedProviders.includes(provider.id)
+      )
+      .flatMap((provider) =>
+        provider.allowedModels.filter((model) => {
+          if (seen.has(model)) return false;
+          if (workload?.allowedModels && !workload.allowedModels.includes(model)) return false;
+          seen.add(model);
+          return true;
+        }).map((id) => ({ id, object: "model", created: 0, owned_by: "egrysa" }))
+      );
     return json({ object: "list", data });
   }
 
@@ -400,9 +441,10 @@ export class Gateway {
     text: string,
     detectors: ReturnType<typeof createDetectors>,
     receiptId: string,
+    config: AppConfig,
   ): Promise<void> {
     try {
-      const counts = await observeResponseText(text, this.config, detectors);
+      const counts = await observeResponseText(text, config, detectors);
       const total = Object.values(counts).reduce<number>((sum, n) => sum + (n ?? 0), 0);
       if (total === 0) return;
       this.metrics.responseFindings += total;

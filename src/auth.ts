@@ -25,6 +25,10 @@ export class InboundAuth {
     return new InboundAuth(hashed);
   }
 
+  workloadIds(): string[] {
+    return this.keys.map((entry) => entry.workloadId);
+  }
+
   async authorize(header: string | null): Promise<AuthContext | null> {
     if (!header?.startsWith("Bearer ")) return null;
     const candidate = await sha256(header.slice(7));

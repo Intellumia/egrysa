@@ -52,6 +52,9 @@ training settings are policy inputs that must be validated through contract and 
   endpoint for person names, physical addresses, and semantically confidential content. It is
   best-effort; measured evidence is in [EVALUATION.md](docs/EVALUATION.md).
 - Four decisions: `deny`, `local_only`, `transform`, and explicitly approved `allow_raw`.
+- Per-workload policy: each inbound key's workload can override the data-class actions, sensitivity,
+  response policy, default provider, and the providers and models it may use, with the merged policy
+  validated at startup like the global one.
 - Response scanning: the provider's reply is inspected before recomposition, blocked classes are
   redacted or refused and transformable classes pass or are redacted by policy, and the signed
   receipt records the counts and the action.
