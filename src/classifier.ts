@@ -4,6 +4,7 @@ import {
   type LocalDetector,
   runDetectorDetailed,
 } from "./detectors.ts";
+import { textVariants } from "./normalize.ts";
 import { createSemanticDetector, REFERENCE_SEMANTIC_DETECTOR_ID } from "./semantic.ts";
 import type { AppConfig, Finding, FindingKind } from "./types.ts";
 
@@ -55,7 +56,13 @@ const patterns: Array<{
     kind: "api_secret",
     regex: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s/@]{3,}@[^\s/?#]+/gi,
   },
-  { kind: "email", regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi },
+  {
+    // Letters from any script are allowed so an internationalised domain is
+    // recognised. The lookarounds replace \b, which only knows ASCII words.
+    kind: "email",
+    regex:
+      /(?<![\p{L}\p{N}._%+-])[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}(?![\p{L}\p{N}-])/giu,
+  },
   {
     kind: "ssn",
     regex: /\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b/g,
@@ -186,28 +193,39 @@ function patternDetector(strict: boolean): LocalDetector {
       id: "egrysa.deterministic.patterns",
       // The build suffix records which ruleset produced a finding, so a receipt
       // stays interpretable without knowing the configuration that ran.
-      version: strict ? "1.2.0+strict" : "1.2.0",
+      version: strict ? "1.3.0+strict" : "1.3.0",
       provenance: "built-in",
       timeoutMs: 100,
     },
     detect({ text }) {
       const findings: Finding[] = [];
-      for (const item of active) {
-        item.regex.lastIndex = 0;
-        for (const match of text.matchAll(item.regex)) {
-          const value = match[0];
-          const start = match.index;
-          if (start === undefined || (item.validate && !item.validate(value))) continue;
-          findings.push({
-            kind: item.kind,
-            start,
-            end: start + value.length,
-            value,
-            confidence: item.precision === "low" ? 0.5 : 1,
-            precision: item.precision ?? "high",
-          });
+      const scan = (
+        surface: string,
+        toOriginal: (start: number, end: number) => { start: number; end: number },
+      ) => {
+        for (const item of active) {
+          item.regex.lastIndex = 0;
+          for (const match of surface.matchAll(item.regex)) {
+            const matched = match[0];
+            if (match.index === undefined || (item.validate && !item.validate(matched))) continue;
+            const span = toOriginal(match.index, match.index + matched.length);
+            findings.push({
+              kind: item.kind,
+              start: span.start,
+              end: span.end,
+              // The value is the original bytes, encoded form and all, so a
+              // surrogate replaces exactly what was present and recomposition
+              // restores it unchanged.
+              value: text.slice(span.start, span.end),
+              confidence: item.precision === "low" ? 0.5 : 1,
+              precision: item.precision ?? "high",
+            });
+          }
         }
-      }
+      };
+      scan(text, (start, end) => ({ start, end }));
+      // Encoded, escaped, marked-up, and look-alike forms of the same values.
+      for (const variant of textVariants(text)) scan(variant.text, variant.toOriginal);
       return { contractVersion: "1", findings };
     },
   };

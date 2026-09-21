@@ -40,6 +40,14 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Encoded and obfuscated forms of known values are detected. The pattern detector now also scans
+  normalised views of each text surface: percent-encoding, JSON escapes, HTML entities, markup
+  inside a value, backslash line continuations, full-width and dash look-alikes, zero-width
+  characters, `[at]`/`(dot)`/spaced email separators, and base64 runs that decode to text. Findings
+  are reported against the original bytes, so surrogates replace the encoded form and recomposition
+  restores it. The email pattern accepts internationalised domains. On the adversarial corpus this
+  lifts fully detected cases from 77 to 91 of 102 with zero false positives; the pattern detector
+  reports version `1.3.0`.
 - An end-to-end gateway overhead benchmark, `deno task bench:e2e`, that starts an in-process echo
   provider and gateway with a real fsynced receipt log and reports p50/p95/p99 latency, throughput,
   and decision counts for plain, transformed, and streamed requests at configurable concurrency.
