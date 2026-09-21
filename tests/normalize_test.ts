@@ -95,7 +95,12 @@ Deno.test("an encoded value is surrogated and recomposed byte for byte", async (
   const text = "The failing request was GET /users?mail=alex%40example.com&ref=1";
   const findings = await classify(text, testConfig());
   const result = transform(text, findings, new Set(["email"]));
-  if (result.text.includes("alex") || result.text.includes("example.com")) {
+  // Neither the local part nor the encoded separator may survive; the whole
+  // encoded span is replaced by one surrogate token.
+  if (
+    result.text.includes("alex") || result.text.includes("%40") ||
+    !/__EGRYSA_EMAIL_/.test(result.text)
+  ) {
     throw new Error("encoded value survived transformation");
   }
   if (!result.text.includes("&ref=1") || !result.text.includes("mail=")) {
