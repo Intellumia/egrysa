@@ -71,6 +71,12 @@ public tag.
   streaming `started` egress outcome. Every streaming provider attests `started`, because a receipt
   is signed when the response begins and cannot later be amended; deny receipts and existing
   version-2/version-3 verification remain unchanged.
+- Receipt appends now use group commit: hashing, signing, and the write stay serialized so the chain
+  is ordered, but one fsync covers every receipt written while the previous fsync was in flight. A
+  request still completes only after an fsync that includes its own receipt, so the durability
+  guarantee is unchanged while throughput is no longer bounded by one fsync per request. A failed
+  fsync now faults the store, which rejects further receipts and checkpoints until restart, rather
+  than letting later receipts chain onto receipts that may never have reached the disk.
 - Receipt logs now fsync each append, rotate at the configured size into sequence-suffixed archives,
   and resume active-chain continuity from a verified signed checkpoint.
 - Semantic detection now applies a 10-second default per-chunk timeout and a separately validated

@@ -14,12 +14,14 @@
   independently anchored audit evidence.
 
 The JSONL receipt chain fsyncs every receipt before request handling continues and survives process
-restarts on durable storage, but it remains single-writer. `receiptMaxLogBytes` defaults to 64 MiB.
-At the limit, Egrysa renames the active log with its last sequence and starts a new log with a
-signed chain-head checkpoint; archived segments are not loaded at startup and need an operator
-retention policy. Run one replica until a consistency-aware sequencing backend exists. A holder of
-the software signing key can rewrite unanchored history, so retain signed checkpoints outside the
-gateway.
+restarts on durable storage, but it remains single-writer. Concurrent receipts share one fsync
+(group commit), so throughput scales with the number of receipts a single fsync can cover rather
+than being bounded by one fsync per request; a failed fsync faults the store until restart.
+`receiptMaxLogBytes` defaults to 64 MiB. At the limit, Egrysa renames the active log with its last
+sequence and starts a new log with a signed chain-head checkpoint; archived segments are not loaded
+at startup and need an operator retention policy. Run one replica until a consistency-aware
+sequencing backend exists. A holder of the software signing key can rewrite unanchored history, so
+retain signed checkpoints outside the gateway.
 
 If the active receipt path is missing or empty while sequence-suffixed archives exist, startup fails
 with an interrupted-rotation error. Do not delete the archives or start the same chain at
