@@ -343,3 +343,128 @@ Deno.test("receipt startup rejects a missing head after interrupted rotation", a
     await Deno.remove(directory, { recursive: true }).catch(() => undefined);
   }
 });
+
+Deno.test("concurrent receipts share fsyncs and remain ordered, durable, and reloadable", async () => {
+  const keys = await configureTestEnvironment();
+  const directory = await Deno.makeTempDir({ prefix: "egrysa-group-commit-" });
+  const options = {
+    fingerprintKey: "a-test-fingerprint-key-that-is-at-least-32-characters",
+    privateKeyPkcs8: keys.privateKey,
+    publicKeySpki: keys.publicKey,
+    chainId: "group-commit-test",
+    logPath: `${directory}/receipts.jsonl`,
+    capacity: 100,
+    maxLogBytes: 8_192,
+  };
+  const input = {
+    requestCanonical: "{}",
+    workloadId: "finance-copilot",
+    decision: "allow_raw" as const,
+    provider: "local",
+    model: "approved-model",
+    findings: [],
+    transformedFields: 0,
+    egress: "completed" as const,
+  };
+  const count = 64;
+  const originalSync = Deno.FsFile.prototype.sync;
+  let syncs = 0;
+  Deno.FsFile.prototype.sync = function (this: Deno.FsFile) {
+    syncs++;
+    return originalSync.call(this);
+  };
+  try {
+    const store = await ReceiptStore.open(options);
+    const receipts = await Promise.all(Array.from({ length: count }, () => store.create(input)));
+    receipts.sort((a, b) => a.sequence - b.sequence);
+    for (const [index, receipt] of receipts.entries()) {
+      const previous = receipts[index - 1];
+      if (
+        receipt.sequence !== index + 1 ||
+        receipt.previousReceiptHash !== (previous ? previous.receiptHash : null) ||
+        store.get(receipt.id)?.receiptHash !== receipt.receiptHash ||
+        !await verifyReceipt(receipt, keys.publicKey)
+      ) throw new Error(`concurrent receipt ${index + 1} broke chain order or verification`);
+    }
+    const head = receipts[count - 1]!;
+    const checkpoint = await store.checkpoint();
+    if (checkpoint.sequence !== count || checkpoint.receiptHash !== head.receiptHash) {
+      throw new Error("checkpoint did not name the durable head after concurrent appends");
+    }
+    await store.close();
+    if (syncs >= count) {
+      throw new Error(
+        `${count} concurrent receipts took ${syncs} fsyncs; group commit is not batching`,
+      );
+    }
+    const rotated = [...Deno.readDirSync(directory)].filter((entry) =>
+      entry.name.startsWith("receipts.jsonl.")
+    );
+    if (rotated.length === 0) throw new Error("test did not exercise rotation under concurrency");
+
+    const restarted = await ReceiptStore.open(options);
+    const next = await restarted.create(input);
+    if (next.sequence !== count + 1 || next.previousReceiptHash !== head.receiptHash) {
+      throw new Error("chain continuity did not survive restart after group-committed appends");
+    }
+    await restarted.close();
+  } finally {
+    Deno.FsFile.prototype.sync = originalSync;
+    await Deno.remove(directory, { recursive: true }).catch(() => undefined);
+  }
+});
+
+Deno.test("a failed fsync faults the receipt store instead of chaining past a gap", async () => {
+  const keys = await configureTestEnvironment();
+  const path = await Deno.makeTempFile({ prefix: "egrysa-fsync-fault-", suffix: ".jsonl" });
+  const options = {
+    fingerprintKey: "a-test-fingerprint-key-that-is-at-least-32-characters",
+    privateKeyPkcs8: keys.privateKey,
+    publicKeySpki: keys.publicKey,
+    chainId: "fsync-fault-test",
+    logPath: path,
+    capacity: 10,
+    maxLogBytes: 64 * 1024 * 1024,
+  };
+  const input = {
+    requestCanonical: "{}",
+    workloadId: "finance-copilot",
+    decision: "allow_raw" as const,
+    provider: "local",
+    model: "approved-model",
+    findings: [],
+    transformedFields: 0,
+    egress: "completed" as const,
+  };
+  const originalSync = Deno.FsFile.prototype.sync;
+  let failNext = false;
+  Deno.FsFile.prototype.sync = function (this: Deno.FsFile) {
+    if (failNext) {
+      failNext = false;
+      return Promise.reject(new Error("simulated fsync failure"));
+    }
+    return originalSync.call(this);
+  };
+  try {
+    const store = await ReceiptStore.open(options);
+    await store.create(input);
+    failNext = true;
+    const outcomes = await Promise.allSettled([
+      store.create(input),
+      store.create(input),
+      store.create(input),
+    ]);
+    if (outcomes.some((outcome) => outcome.status === "fulfilled")) {
+      throw new Error("a receipt resolved although the fsync covering it failed");
+    }
+    const after = await store.create(input).then(() => "fulfilled", () => "rejected");
+    const checkpoint = await store.checkpoint().then(() => "fulfilled", () => "rejected");
+    if (after !== "rejected" || checkpoint !== "rejected") {
+      throw new Error("the store kept accepting receipts after a failed fsync");
+    }
+    await store.close();
+  } finally {
+    Deno.FsFile.prototype.sync = originalSync;
+    await Deno.remove(path).catch(() => undefined);
+  }
+});
