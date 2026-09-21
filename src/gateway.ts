@@ -3,9 +3,11 @@ import { BodySizeLimitError, readBoundedBytes } from "./bounded.ts";
 import { inspectChat, transformChat } from "./chat.ts";
 import {
   resolveNerDetectorConfig,
+  resolveRateLimit,
   resolveSemanticDetectorConfig,
   resolveWorkloadConfig,
 } from "./config.ts";
+import { RateLimiter } from "./ratelimit.ts";
 import { OPTIONAL_DETECTOR_IDS } from "./classifier.ts";
 import { createNerDetector, REFERENCE_NER_DETECTOR_ID } from "./ner.ts";
 import { Metrics } from "./metrics.ts";
@@ -32,6 +34,7 @@ const MAX_PENDING_REVIEWS = 1024;
 export class Gateway {
   readonly metrics = new Metrics();
   private readonly pendingReviews = new Set<string>();
+  private readonly limiter = new RateLimiter();
 
   // A hold is cleared by naming the receipt this gateway issued for it, so an
   // acknowledgement cannot be forged by sending an arbitrary header value.
@@ -102,9 +105,13 @@ export class Gateway {
       if (url.pathname === "/v1/receipts/checkpoint") return json(await this.receipts.checkpoint());
       if (url.pathname === "/v1/receipts/public-key") return json(this.receipts.publicKeyInfo());
       const receipt = this.receipts.get(url.pathname.slice("/v1/receipts/".length));
-      return receipt?.workloadId === auth.workloadId
+      // A caller sees only its own workload's receipts; an auditor sees all.
+      return receipt && (auth.role === "auditor" || receipt.workloadId === auth.workloadId)
         ? json(receipt)
         : problem(404, "not_found", "Receipt not found.");
+    }
+    if (auth.role === "auditor") {
+      return problem(403, "forbidden", "Auditor keys are read-only.");
     }
     if (request.method === "GET" && url.pathname === "/v1/models") {
       return this.models(auth.workloadId);
@@ -119,6 +126,20 @@ export class Gateway {
     // Everything below decides against the workload's effective policy.
     const config = resolveWorkloadConfig(this.config, workloadId);
     const workload = this.config.workloads?.[workloadId];
+    const limit = resolveRateLimit(config.policy);
+    if (limit) {
+      const waitMs = this.limiter.take(workloadId, limit);
+      if (waitMs > 0) {
+        this.metrics.rateLimited++;
+        const response = problem(
+          429,
+          "rate_limited",
+          "This workload has exceeded its request rate.",
+        );
+        response.headers.set("retry-after", String(Math.max(1, Math.ceil(waitMs / 1000))));
+        return response;
+      }
+    }
     this.metrics.requests++;
     this.metrics.inFlight++;
     let receiptId: string | undefined;

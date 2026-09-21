@@ -10,6 +10,7 @@ export class Metrics {
   responseFindings = 0;
   responseRedactions = 0;
   responseDenials = 0;
+  rateLimited = 0;
   inFlight = 0;
   #detectorLatencyCount = 0;
   #detectorLatencyTotalMs = 0;
@@ -45,6 +46,9 @@ export class Metrics {
       "# HELP egrysa_recomposition_failures_total Provider responses containing damaged surrogate tokens.",
       "# TYPE egrysa_recomposition_failures_total counter",
       `egrysa_recomposition_failures_total ${this.recompositionFailures}`,
+      "# HELP egrysa_rate_limited_total Requests refused because a workload exceeded its rate limit.",
+      "# TYPE egrysa_rate_limited_total counter",
+      `egrysa_rate_limited_total ${this.rateLimited}`,
       "# HELP egrysa_response_findings_total Sensitive values found in provider responses, before recomposition.",
       "# TYPE egrysa_response_findings_total counter",
       `egrysa_response_findings_total ${this.responseFindings}`,

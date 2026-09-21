@@ -40,6 +40,12 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Per-workload rate limiting: `policy.rateLimit` (globally or per workload) is a token bucket per
+  workload key answering 429 with `Retry-After` before inspection, counted in
+  `egrysa_rate_limited_total`. Per replica by design; the operations guide says to keep an ingress
+  limiter in front of untrusted callers.
+- An auditor role: `EGRYSA_AUDITOR_KEYS` holds read-only keys that can read every workload's
+  receipts, the checkpoint, the public key, and the metrics, and are refused on every other route.
 - Per-workload policy. An optional `workloads` map keyed by inbound workload id overrides the
   data-class actions, sensitive terms, sensitivity, response policy, and default provider for that
   workload, and can narrow the providers and models it may use. Overrides inherit everything they do

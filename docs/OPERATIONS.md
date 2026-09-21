@@ -129,6 +129,27 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Rate limiting and roles
+
+`policy.rateLimit` sets a token bucket per workload: `requestsPerMinute` is the sustained rate and
+`burst` (default: the per-minute rate) is how many requests may arrive at once. A workload override
+can carry its own `rateLimit`. A request over the limit is refused with 429 `rate_limited` and a
+`Retry-After` header before any inspection, and counted in `egrysa_rate_limited_total`.
+
+```json
+{ "policy": { "rateLimit": { "requestsPerMinute": 600, "burst": 60 } } }
+```
+
+The bucket lives in the gateway process, so with several replicas the effective rate is the
+configured rate times the replica count, and a restart refills every bucket. It is an accountability
+control for the keys the gateway itself issues, not a substitute for an ingress limiter in front of
+untrusted callers.
+
+`EGRYSA_AUDITOR_KEYS` holds read-only keys in the same `id=key` form as `EGRYSA_INBOUND_KEYS`. An
+auditor key can read every workload's receipts, the checkpoint, the public key, and `/metrics`, and
+is refused with 403 on every other route. Issue it from a different team than the caller keys and
+rotate it on its own schedule; the two variables are parsed separately so that is possible.
+
 ## Per-workload policy
 
 Every inbound key carries a workload id, and a workload can carry its own policy. An override names
