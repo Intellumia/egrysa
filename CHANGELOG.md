@@ -40,6 +40,14 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Provider responses are scanned with the same detectors before recomposition, so anything found is
+  provider-originated and the customer's own restored values are never counted. `policy.response`
+  chooses the action per class: a blocked class is redacted to `[REDACTED:<KIND>]` by default or the
+  response is refused with `response_denied`; transformable classes pass by default or are redacted.
+  Provider-attempt receipts are version 5 and carry content-free response evidence (`findingCounts`,
+  `action`). A stream's receipt is signed when it begins, so streams are observed after completion
+  through `egrysa_response_findings_total` and a content-free log event, and their receipts say
+  `unscanned`.
 - A reference customer-local NER detector for person names and physical addresses. A purpose-built
   entity model runs as a loopback sidecar inside the customer boundary (`tools/ner_sidecar/`,
   Python, pinned model revision), and a zero-dependency adapter in `src/ner.ts` speaks a small

@@ -138,10 +138,17 @@ export interface ClassificationResult {
   detectorDegraded: boolean;
 }
 
-export async function classifyDetailed(
+export function classifyDetailed(
   text: string,
   config: AppConfig,
   detectors: LocalDetector[] = createDetectors(config),
+): Promise<ClassificationResult> {
+  return classifyDetectors(text, detectors);
+}
+
+export async function classifyDetectors(
+  text: string,
+  detectors: LocalDetector[],
 ): Promise<ClassificationResult> {
   const executions = await Promise.all(detectors.map(async (detector): Promise<
     DetectorExecution & {

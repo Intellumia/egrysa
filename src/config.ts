@@ -38,6 +38,21 @@ export interface ResolvedNerDetectorConfig {
   kinds: NerFindingKind[];
 }
 
+export interface ResolvedResponsePolicy {
+  scan: boolean;
+  blocked: "redact" | "deny";
+  transformable: "pass" | "redact";
+}
+
+export function resolveResponsePolicy(config: AppConfig): ResolvedResponsePolicy {
+  const raw = config.policy.response;
+  return {
+    scan: raw?.scan ?? true,
+    blocked: raw?.blocked ?? "redact",
+    transformable: raw?.transformable ?? "pass",
+  };
+}
+
 export async function loadConfig(
   path = Deno.env.get("EGRYSA_CONFIG") ?? DEFAULT_PATH,
 ): Promise<AppConfig> {
@@ -96,6 +111,7 @@ export function validateConfig(config: AppConfig): void {
   validateSemanticDetectorConfig(config);
   validateNerDetectorConfig(config);
   validatePolicyTaxonomy(config);
+  validateResponsePolicy(config);
   if (
     config.policy.sensitivity !== undefined &&
     !SENSITIVITIES.includes(config.policy.sensitivity)
@@ -266,6 +282,28 @@ function validateOptionalSemanticFields(config: SemanticDetectorConfig): void {
   }
   if (config.kinds !== undefined && !Array.isArray(config.kinds)) {
     throw new Error("semanticDetector.kinds must be an array");
+  }
+}
+
+function validateResponsePolicy(config: AppConfig): void {
+  const raw = config.policy.response;
+  if (raw === undefined) return;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("policy.response must be an object");
+  }
+  for (const key of Object.keys(raw)) {
+    if (!["scan", "blocked", "transformable"].includes(key)) {
+      throw new Error(`policy.response has unknown field: ${key}`);
+    }
+  }
+  if (raw.scan !== undefined && typeof raw.scan !== "boolean") {
+    throw new Error("policy.response.scan must be boolean");
+  }
+  if (raw.blocked !== undefined && !["redact", "deny"].includes(raw.blocked)) {
+    throw new Error("policy.response.blocked must be redact or deny");
+  }
+  if (raw.transformable !== undefined && !["pass", "redact"].includes(raw.transformable)) {
+    throw new Error("policy.response.transformable must be pass or redact");
   }
 }
 

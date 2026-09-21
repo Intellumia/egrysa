@@ -129,6 +129,39 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Response scanning
+
+The provider's reply is inspected with the same detectors as the request, before recomposition. At
+that point the customer's own values are still surrogate tokens, so anything found came from the
+provider: a credential or card number recalled from training data, a value leaked from another
+context, or personal data the model produced on its own. The policy is per data class:
+
+```json
+{
+  "policy": {
+    "response": { "scan": true, "blocked": "redact", "transformable": "pass" }
+  }
+}
+```
+
+- `blocked` classes (`blockKinds`): `redact` replaces each value with `[REDACTED:<KIND>]` and the
+  caller receives the rest of the answer; `deny` refuses the whole response with a 403
+  `response_denied` problem naming the receipt.
+- `transformable` classes: `pass` leaves the provider's text as it is; `redact` treats them like
+  blocked classes. Local-only classes are the customer's own vocabulary and always pass.
+- `scan: false` turns the scan off; receipts then record `unscanned`.
+
+Every provider-attempt receipt is version 5 and carries `response.findingCounts` and
+`response.action` (`none`, `redacted`, `denied`, `unscanned`). It never carries text. Metrics:
+`egrysa_response_findings_total`, `egrysa_response_redactions_total`,
+`egrysa_response_denials_total`.
+
+A stream's receipt is signed when the response begins, so a stream cannot be redacted or refused
+after the fact. The gateway observes the provider's text as it passes, scans it when the stream
+completes, counts findings in the metric above, and logs a content-free `stream_response_findings`
+event with the receipt id. The receipt says `unscanned`. A deployment that needs enforcement on
+responses should not enable streaming for that workload.
+
 ## Reference local NER detector
 
 Person names and physical addresses are found by a purpose-built entity model, not by the chat model

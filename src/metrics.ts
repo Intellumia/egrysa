@@ -7,6 +7,9 @@ export class Metrics {
   detectorFailures = 0;
   detectorTimeouts = 0;
   semanticFindings = 0;
+  responseFindings = 0;
+  responseRedactions = 0;
+  responseDenials = 0;
   inFlight = 0;
   #detectorLatencyCount = 0;
   #detectorLatencyTotalMs = 0;
@@ -42,6 +45,15 @@ export class Metrics {
       "# HELP egrysa_recomposition_failures_total Provider responses containing damaged surrogate tokens.",
       "# TYPE egrysa_recomposition_failures_total counter",
       `egrysa_recomposition_failures_total ${this.recompositionFailures}`,
+      "# HELP egrysa_response_findings_total Sensitive values found in provider responses, before recomposition.",
+      "# TYPE egrysa_response_findings_total counter",
+      `egrysa_response_findings_total ${this.responseFindings}`,
+      "# HELP egrysa_response_redactions_total Provider responses with at least one value redacted.",
+      "# TYPE egrysa_response_redactions_total counter",
+      `egrysa_response_redactions_total ${this.responseRedactions}`,
+      "# HELP egrysa_response_denials_total Provider responses refused because of a blocked data class.",
+      "# TYPE egrysa_response_denials_total counter",
+      `egrysa_response_denials_total ${this.responseDenials}`,
       "# HELP egrysa_detector_failures_total Local semantic detector failures.",
       "# TYPE egrysa_detector_failures_total counter",
       `egrysa_detector_failures_total ${this.detectorFailures}`,

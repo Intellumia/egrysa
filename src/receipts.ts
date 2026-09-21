@@ -13,6 +13,7 @@ import type {
   PrivacyReceipt,
   ReceiptCheckpoint,
   ReceiptDetector,
+  ResponseEvidence,
 } from "./types.ts";
 
 interface ReceiptInput {
@@ -26,6 +27,7 @@ interface ReceiptInput {
   detectors?: ReceiptDetector[];
   detectorDegraded?: boolean;
   egress?: EgressOutcome;
+  response?: ResponseEvidence;
 }
 
 export interface ReceiptStoreOptions {
@@ -183,7 +185,19 @@ export class ReceiptStore {
     const detectorEvidence = detectors === undefined
       ? {}
       : { detectors, detectorDegraded: input.detectorDegraded ?? false };
-    const unsigned = input.egress !== undefined
+    const unsigned = input.egress !== undefined && input.response !== undefined
+      ? {
+        version: "5" as const,
+        ...common,
+        egress: input.egress,
+        response: {
+          findingCounts: input.response.findingCounts,
+          action: input.response.action,
+        },
+        ...detectorEvidence,
+        ...tail,
+      }
+      : input.egress !== undefined
       ? {
         version: "4" as const,
         ...common,
@@ -469,9 +483,10 @@ function unsignedReceipt(
     model: receipt.model,
     findingCounts: receipt.findingCounts,
     transformedFields: receipt.transformedFields,
-    ...(receipt.version === "4" ? { egress: receipt.egress } : {}),
+    ...(receipt.version === "4" || receipt.version === "5" ? { egress: receipt.egress } : {}),
+    ...(receipt.version === "5" ? { response: receipt.response } : {}),
     ...(receipt.version === "3" ||
-        (receipt.version === "4" && receipt.detectors !== undefined)
+        ((receipt.version === "4" || receipt.version === "5") && receipt.detectors !== undefined)
       ? { detectors: receipt.detectors, detectorDegraded: receipt.detectorDegraded }
       : {}),
     rawContentPersisted: receipt.rawContentPersisted,
@@ -518,16 +533,33 @@ function validReceiptVersion(receipt: PrivacyReceipt): boolean {
     return hasExactKeys(receipt, [...commonKeys, "detectors", "detectorDegraded"]) &&
       validDetectorEvidence(receipt.detectors, receipt.detectorDegraded);
   }
-  if (receipt.version !== "4" || !["completed", "failed", "started"].includes(receipt.egress)) {
+  if (
+    (receipt.version !== "4" && receipt.version !== "5") ||
+    !["completed", "failed", "started"].includes(receipt.egress)
+  ) {
     return false;
   }
   const hasDetectors = "detectors" in receipt;
   const hasDegraded = "detectorDegraded" in receipt;
   if (hasDetectors !== hasDegraded) return false;
+  const versionKeys = receipt.version === "5" ? ["egress", "response"] : ["egress"];
   return hasExactKeys(
     receipt,
-    [...commonKeys, "egress", ...(hasDetectors ? ["detectors", "detectorDegraded"] : [])],
-  ) && (!hasDetectors || validDetectorEvidence(receipt.detectors, receipt.detectorDegraded));
+    [...commonKeys, ...versionKeys, ...(hasDetectors ? ["detectors", "detectorDegraded"] : [])],
+  ) && (!hasDetectors || validDetectorEvidence(receipt.detectors, receipt.detectorDegraded)) &&
+    (receipt.version !== "5" || validResponseEvidence(receipt.response));
+}
+
+function validResponseEvidence(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  if (!hasExactKeys(evidence, ["findingCounts", "action"])) return false;
+  if (!["none", "redacted", "denied", "unscanned"].includes(evidence.action as string)) {
+    return false;
+  }
+  const counts = evidence.findingCounts;
+  if (!counts || typeof counts !== "object" || Array.isArray(counts)) return false;
+  return Object.values(counts).every((count) => Number.isInteger(count) && (count as number) > 0);
 }
 
 function validDetectorEvidence(detectors: unknown, degraded: unknown): boolean {

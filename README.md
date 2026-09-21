@@ -49,6 +49,9 @@ training settings are policy inputs that must be validated through contract and 
   endpoint for person names, physical addresses, and semantically confidential content. It is
   best-effort; measured evidence is in [EVALUATION.md](docs/EVALUATION.md).
 - Four decisions: `deny`, `local_only`, `transform`, and explicitly approved `allow_raw`.
+- Response scanning: the provider's reply is inspected before recomposition, blocked classes are
+  redacted or refused and transformable classes pass or are redacted by policy, and the signed
+  receipt records the counts and the action.
 - Request-scoped, consistent surrogate replacement and local response recomposition.
 - OpenAI, Anthropic, and local OpenAI-compatible adapters with an explicit
   [capability table](src/provider_capabilities.ts), validated narrowing overrides, and disclosed
