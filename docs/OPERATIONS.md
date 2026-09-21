@@ -129,6 +129,57 @@ report under `evals/conformance/`; surrogate fidelity is informational. See
 After adding a report, run `deno task conformance:matrix` to regenerate the README support matrix
 from the capability table and committed evidence.
 
+## Reference local NER detector
+
+Person names and physical addresses are found by a purpose-built entity model, not by the chat model
+behind the semantic detector. Measured on the shipped cases, the semantic detector needs a
+20B-parameter model and about 12 seconds per request to find names reliably, and a 3B model finds
+half of them; the entity model finds all of them in about 40 milliseconds on a CPU. It is a Python
+artefact, and the gateway carries no third-party runtime code, so it runs as a separate loopback
+process inside the customer boundary, exactly as Ollama does for the semantic detector.
+
+The reference sidecar is [`tools/ner_sidecar/`](../tools/ner_sidecar/README.md). Start it, then
+enable the adapter:
+
+```json
+{
+  "nerDetector": {
+    "enabled": true,
+    "baseUrl": "http://127.0.0.1:11436",
+    "timeoutMs": 2000,
+    "totalTimeoutMs": 6000,
+    "maxInputBytes": 16384,
+    "minConfidence": 0.5,
+    "onDetectorFailure": "degrade",
+    "kinds": ["person_name", "physical_address"]
+  }
+}
+```
+
+Configuration validation refuses any `baseUrl` that is not loopback or that carries credentials, a
+query, or a fragment. In Kubernetes run the sidecar as a second container in the gateway pod so it
+shares the pod's loopback; it needs a model cache volume and no egress after the model is cached.
+The gateway's network permission includes `127.0.0.1:11436` for this purpose.
+
+The adapter holds the sidecar to the same contract as the semantic detector. A candidate is accepted
+only if it occurs literally in the chunk it was reported for, so invented or normalised text is
+discarded; candidates below `minConfidence` are dropped; findings are low precision and cannot
+hard-deny; input, response, candidate count, and occurrences are bounded; and `timeoutMs` and
+`totalTimeoutMs` are the per-chunk and per-surface deadlines. On any failure the request follows
+this block's own `onDetectorFailure`, independently of the semantic detector's, and a failed
+detector drops only its own findings. Receipts record the adapter as `egrysa.reference.local-ner`
+with its version, and the degradation flag; they never record text.
+
+Measure before enabling on interactive traffic:
+
+```sh
+EGRYSA_CONFIG=config/<your-config>.json deno task eval:ner
+deno run --no-prompt --allow-read=config,evals --allow-net=127.0.0.1 \
+  tools/adversarial_report.ts --corpus=evals/scenarios.jsonl --config=config/<your-config>.json
+```
+
+The reference run on an Apple M4 is recorded in [EVALUATION.md](EVALUATION.md).
+
 ## Reference local semantic detector
 
 The semantic detector is off by default. It may reference only an OpenAI-compatible provider with

@@ -40,6 +40,16 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- A reference customer-local NER detector for person names and physical addresses. A purpose-built
+  entity model runs as a loopback sidecar inside the customer boundary (`tools/ner_sidecar/`,
+  Python, pinned model revision), and a zero-dependency adapter in `src/ner.ts` speaks a small
+  versioned contract to it with the same safeguards as the semantic detector: loopback-only
+  configuration, bounded input and response sizes, per-chunk and per-surface deadlines,
+  literal-candidate validation, capped findings, low precision, and content-free evidence. Off by
+  default via `nerDetector`. Each optional detector now carries its own `onDetectorFailure`, and a
+  failed detector drops only its own findings. Measured live through `deno task eval:ner`: 100%
+  precision and recall on both kinds at 50 ms p95; the scenario corpus reaches 66/67 with it
+  enabled.
 - Corpus credential fixtures are seeded placeholders, `{{rand:<alphabet>:<length>}}`, expanded by
   the loader from the case id, so the committed corpora hold no token-shaped strings while every
   evaluation runs on random-looking values a scanner would flag. Reports print the corpus SHA-256,

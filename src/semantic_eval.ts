@@ -98,9 +98,12 @@ export async function runSemanticEvaluation(
   detector: LocalDetector,
   mode: "offline" | "live",
   model: string,
+  // The kinds the detector under test claims. Expectations for other kinds
+  // are ignored so a detector is scored on its own contract, not on another's.
+  kinds: readonly SemanticFindingKind[] = SEMANTIC_FINDING_KINDS,
 ): Promise<SemanticEvalReport> {
   const counts = Object.fromEntries(
-    SEMANTIC_FINDING_KINDS.map((kind) => [kind, { tp: 0, fp: 0, fn: 0 }]),
+    kinds.map((kind) => [kind, { tp: 0, fp: 0, fn: 0 }]),
   ) as Record<SemanticFindingKind, { tp: number; fp: number; fn: number }>;
   const latencies: number[] = [];
   let negativeCases = 0;
@@ -116,8 +119,8 @@ export async function runSemanticEvaluation(
     }
     latencies.push(performance.now() - started);
     const actual = new Set(findings.map((finding) => finding.kind));
-    const expected = new Set(row.expectedKinds);
-    for (const kind of SEMANTIC_FINDING_KINDS) {
+    const expected = new Set(row.expectedKinds.filter((kind) => kinds.includes(kind)));
+    for (const kind of kinds) {
       if (actual.has(kind) && expected.has(kind)) counts[kind].tp++;
       else if (actual.has(kind)) counts[kind].fp++;
       else if (expected.has(kind)) counts[kind].fn++;

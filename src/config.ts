@@ -2,6 +2,9 @@ import {
   type AppConfig,
   FINDING_KINDS,
   type FindingKind,
+  NER_FINDING_KINDS,
+  type NerDetectorConfig,
+  type NerFindingKind,
   PROVIDER_CAPABILITY_KEYS,
   type ProviderConfig,
   SEMANTIC_FINDING_KINDS,
@@ -22,6 +25,17 @@ export interface ResolvedSemanticDetectorConfig {
   maxInputBytes: number;
   onDetectorFailure: "degrade" | "deny";
   kinds: SemanticFindingKind[];
+}
+
+export interface ResolvedNerDetectorConfig {
+  enabled: boolean;
+  baseUrl: string;
+  timeoutMs: number;
+  totalTimeoutMs: number;
+  maxInputBytes: number;
+  minConfidence: number;
+  onDetectorFailure: "degrade" | "deny";
+  kinds: NerFindingKind[];
 }
 
 export async function loadConfig(
@@ -80,6 +94,7 @@ export function validateConfig(config: AppConfig): void {
     throw new Error("localProvider must reference a provider inside the local trust boundary");
   }
   validateSemanticDetectorConfig(config);
+  validateNerDetectorConfig(config);
   validatePolicyTaxonomy(config);
   if (
     config.policy.sensitivity !== undefined &&
@@ -165,6 +180,79 @@ export function validateSemanticDetectorConfig(config: AppConfig): void {
   ) {
     throw new Error("semanticDetector.kinds must contain unique semantic finding kinds");
   }
+}
+
+export function resolveNerDetectorConfig(config: AppConfig): ResolvedNerDetectorConfig {
+  const detector = config.nerDetector;
+  return {
+    enabled: detector?.enabled ?? false,
+    baseUrl: detector?.baseUrl ?? "http://127.0.0.1:11436",
+    timeoutMs: detector?.timeoutMs ?? 2_000,
+    totalTimeoutMs: detector?.totalTimeoutMs ?? 6_000,
+    maxInputBytes: detector?.maxInputBytes ?? 16_384,
+    minConfidence: detector?.minConfidence ?? 0.5,
+    onDetectorFailure: detector?.onDetectorFailure ?? "degrade",
+    kinds: [...(detector?.kinds ?? NER_FINDING_KINDS)],
+  };
+}
+
+// The NER detector is a separate local process. It is held to the same
+// boundary as the semantic detector's provider: loopback only, no credentials
+// in the URL, and explicit bounds on every deadline and size.
+export function validateNerDetectorConfig(config: AppConfig): void {
+  const raw: NerDetectorConfig | undefined = config.nerDetector;
+  if (raw === undefined) return;
+  if (!raw || typeof raw !== "object" || typeof raw.enabled !== "boolean") {
+    throw new Error("nerDetector.enabled must be boolean");
+  }
+  if (raw.baseUrl !== undefined && (typeof raw.baseUrl !== "string" || !raw.baseUrl)) {
+    throw new Error("nerDetector.baseUrl must be a non-empty string");
+  }
+  if (raw.kinds !== undefined && !Array.isArray(raw.kinds)) {
+    throw new Error("nerDetector.kinds must be an array");
+  }
+  const detector = resolveNerDetectorConfig(config);
+  let url: URL;
+  try {
+    url = new URL(detector.baseUrl);
+  } catch {
+    throw new Error("nerDetector.baseUrl must be a valid URL");
+  }
+  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname)) {
+    throw new Error("nerDetector.baseUrl must use a loopback endpoint");
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("nerDetector.baseUrl must use http or https");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("nerDetector.baseUrl cannot contain credentials, query, or fragment");
+  }
+  if (
+    !Number.isInteger(detector.timeoutMs) || detector.timeoutMs < 100 ||
+    detector.timeoutMs > 300_000
+  ) throw new Error("nerDetector.timeoutMs must be between 100 ms and 5 minutes");
+  if (
+    !Number.isInteger(detector.totalTimeoutMs) || detector.totalTimeoutMs < 100 ||
+    detector.totalTimeoutMs > 300_000
+  ) throw new Error("nerDetector.totalTimeoutMs must be between 100 ms and 5 minutes");
+  if (detector.totalTimeoutMs < detector.timeoutMs) {
+    throw new Error("nerDetector.totalTimeoutMs must be at least timeoutMs");
+  }
+  if (
+    !Number.isInteger(detector.maxInputBytes) || detector.maxInputBytes < 256 ||
+    detector.maxInputBytes > config.maxRequestBytes
+  ) throw new Error("nerDetector.maxInputBytes must be between 256 and maxRequestBytes");
+  if (
+    typeof detector.minConfidence !== "number" || !Number.isFinite(detector.minConfidence) ||
+    detector.minConfidence < 0 || detector.minConfidence > 1
+  ) throw new Error("nerDetector.minConfidence must be between 0 and 1");
+  if (!(["degrade", "deny"] as const).includes(detector.onDetectorFailure)) {
+    throw new Error("nerDetector.onDetectorFailure must be degrade or deny");
+  }
+  if (
+    detector.kinds.length === 0 || new Set(detector.kinds).size !== detector.kinds.length ||
+    detector.kinds.some((kind) => !NER_FINDING_KINDS.includes(kind))
+  ) throw new Error("nerDetector.kinds must contain unique NER finding kinds");
 }
 
 function validateOptionalSemanticFields(config: SemanticDetectorConfig): void {
