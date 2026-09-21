@@ -7,6 +7,12 @@ public tag.
 
 ### Added
 
+- Evaluation kit. `eval-kit/quickstart.sh` installs a private copy of the pinned Deno if none is
+  present, generates local-only keys, starts the stub provider and the gateway, runs the Phase 1
+  probes (`eval-kit/smoke.sh`: discovery, authentication, transform with a provider-side check,
+  receipt, deny, streaming, public key, checkpoint, content-free metrics), and verifies the receipt
+  chain offline. `eval-kit/evidence.sh` runs every published check and writes logs, counts, digests
+  and timings to a folder to send back, with no request content.
 - Compatibility policy. `docs/COMPATIBILITY.md` freezes the HTTP API, receipt schema (versions 2 to
   5 verify forever), configuration schema (`api/config.schema.json`, `schemaVersion` 1), evidence
   export records, and the detector and signer contracts, and states the support window and how

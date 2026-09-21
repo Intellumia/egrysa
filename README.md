@@ -146,6 +146,16 @@ The fastest way to see the boundary work. This path needs no model, no download,
 key. It exercises classification, policy, surrogate replacement, local recomposition, streaming, and
 signed receipts against a stub endpoint that speaks the OpenAI-compatible API and runs no inference.
 
+In one command, including a private install of the pinned runtime if Deno is absent:
+
+```sh
+./eval-kit/quickstart.sh
+```
+
+It runs the probes below, verifies the receipt chain offline, and prints where the evidence is;
+`./eval-kit/evidence.sh` then packages every published check into a folder to send back. See
+[the evaluation kit](eval-kit/README.md). The manual path is:
+
 ```sh
 deno task keygen > .env.stub   # local-only keys
 deno task stub                 # terminal 1: stub provider on 127.0.0.1:11435
