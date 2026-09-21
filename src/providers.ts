@@ -22,6 +22,12 @@ export type ProviderInvocation =
   | {
     type: "stream";
     response: Response;
+    // The connect deadline is cleared once the stream's headers arrive. The
+    // caller arms the stream deadline when it starts reading, so the time it
+    // spends on its own work first (signing and committing the receipt) is
+    // not charged to the provider; a stream that then runs past the deadline
+    // is aborted. complete() disarms it.
+    arm: () => void;
     complete: () => void;
     downgraded: string[];
     emulated: boolean;
@@ -29,7 +35,7 @@ export type ProviderInvocation =
 
 type AdapterInvocation =
   | { type: "json"; data: Record<string, unknown> }
-  | { type: "stream"; response: Response; complete: () => void };
+  | { type: "stream"; response: Response };
 
 export async function invokeProvider(
   provider: ProviderConfig,
@@ -50,6 +56,14 @@ export async function invokeProvider(
   const effectiveRequest = prepared.request;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let streamTimeout: ReturnType<typeof setTimeout> | undefined;
+  const streamDeadline = {
+    arm: () => {
+      clearTimeout(streamTimeout);
+      streamTimeout = setTimeout(() => controller.abort(), timeoutMs);
+    },
+    complete: () => clearTimeout(streamTimeout),
+  };
   try {
     if (
       provider.kind === "anthropic" || provider.kind === "bedrock" || provider.kind === "vertex"
@@ -65,6 +79,7 @@ export async function invokeProvider(
         const sse = provider.kind === "bedrock"
           ? bedrockStreamToSse(upstream.body!)
           : upstream.body!;
+        clearTimeout(timeout);
         return {
           type: "stream",
           response: translateAnthropicStream(
@@ -72,7 +87,7 @@ export async function invokeProvider(
             effectiveRequest.model,
             effectiveRequest.stream_options?.include_usage,
           ),
-          complete: () => clearTimeout(timeout),
+          ...streamDeadline,
           downgraded: prepared.downgraded,
           emulated: false,
         };
@@ -93,9 +108,10 @@ export async function invokeProvider(
       maxResponseBytes,
     );
     if (invocation.type === "stream") {
+      clearTimeout(timeout);
       return {
         ...invocation,
-        complete: () => clearTimeout(timeout),
+        ...streamDeadline,
         downgraded: prepared.downgraded,
         emulated: false,
       };
@@ -143,7 +159,7 @@ async function invokeOpenAiCompatible(
     if (!response.ok || !response.body) {
       await throwProviderResponse(response);
     }
-    return { type: "stream", response, complete: () => undefined };
+    return { type: "stream", response };
   }
   return { type: "json", data: await parseProviderResponse(response, maxResponseBytes) };
 }
