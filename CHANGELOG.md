@@ -40,6 +40,14 @@ public tag.
 - A pre-filled security questionnaire, a threat-model section covering compromise of the gateway
   itself, and a scored status for every acceptance gate.
 - A streaming recomposition benchmark, `deno task bench`.
+- Surrogate style and scope. `policy.surrogates.style` chooses sentinel tokens (default) or
+  format-preserving synthetic values from reserved ranges, which models handle as ordinary text
+  while local recomposition restores the originals; `policy.surrogates.scope` chooses fresh
+  surrogates per request (default) or the same surrogate for the same value across a workload's
+  requests, derived from a keyed hash and never stored, which keeps multi-turn conversations
+  coherent and lets provider prompt caching hit at the cost of cross-request linkability. Response
+  scanning excludes surrogate values of either style, and the streaming recomposer scans every chunk
+  when surrogates carry no sentinel.
 - Opt-in prompt-injection detection. Adding `prompt_injection` to `nerDetector.kinds` makes the
   reference sidecar score each request with a pinned classifier and report the highest-scoring
   window as a low-precision finding. The kind is a new blocked class, so **configurations from an

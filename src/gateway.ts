@@ -5,8 +5,10 @@ import {
   resolveNerDetectorConfig,
   resolveRateLimit,
   resolveSemanticDetectorConfig,
+  resolveSurrogatePolicy,
   resolveWorkloadConfig,
 } from "./config.ts";
+import { createSurrogateState, prepareDurableSurrogates } from "./surrogate.ts";
 import { RateLimiter } from "./ratelimit.ts";
 import { OPTIONAL_DETECTOR_IDS } from "./classifier.ts";
 import { createNerDetector, REFERENCE_NER_DETECTOR_ID } from "./ner.ts";
@@ -44,6 +46,10 @@ export class Gateway {
     this.pendingReviews.delete(token);
     return true;
   }
+
+  // Key material for workload-scoped surrogates; the same secret that keys
+  // receipt fingerprints, so a deployment has one secret to rotate.
+  private readonly surrogateSecret = Deno.env.get("EGRYSA_RECEIPT_FINGERPRINT_KEY") ?? "";
 
   private constructor(
     private readonly config: AppConfig,
@@ -277,7 +283,15 @@ export class Gateway {
       let transformedFields = 0;
       if (policy.decision === "transform") {
         const allowed = new Set(config.policy.transformKinds);
-        const transformed = transformChat(chat, inspection, allowed);
+        const surrogates = resolveSurrogatePolicy(config.policy);
+        const state = createSurrogateState(surrogates.style);
+        if (surrogates.scope === "workload") {
+          await prepareDurableSurrogates(state, inspection.findings, allowed, {
+            secret: this.surrogateSecret,
+            workloadId,
+          });
+        }
+        const transformed = transformChat(chat, inspection, allowed, state);
         outbound = transformed.chat;
         aggregateMap = transformed.mapping;
         transformedFields = transformed.transformedFields;
@@ -318,7 +332,7 @@ export class Gateway {
       const detectors = createDetectors(config);
       const scan = invocation.type === "stream"
         ? null
-        : await scanResponse(invocation.data, config, detectors);
+        : await scanResponse(invocation.data, config, detectors, aggregateMap);
       if (scan) this.recordResponseScan(scan.evidence);
       const receipt = await this.receipts.create({
         ...receiptContext,
@@ -348,7 +362,7 @@ export class Gateway {
           },
           () => {
             invocation.complete();
-            void this.observeStream(observed, detectors, receipt.id, config);
+            void this.observeStream(observed, detectors, receipt.id, config, aggregateMap);
           },
           (text) => {
             if (observed.length < limit) observed += text;
@@ -463,9 +477,10 @@ export class Gateway {
     detectors: ReturnType<typeof createDetectors>,
     receiptId: string,
     config: AppConfig,
+    surrogates: ReadonlyMap<string, string>,
   ): Promise<void> {
     try {
-      const counts = await observeResponseText(text, config, detectors);
+      const counts = await observeResponseText(text, config, detectors, surrogates);
       const total = Object.values(counts).reduce<number>((sum, n) => sum + (n ?? 0), 0);
       if (total === 0) return;
       this.metrics.responseFindings += total;

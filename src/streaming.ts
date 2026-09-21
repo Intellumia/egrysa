@@ -114,11 +114,15 @@ export function recomposeOpenAiStream(
 class BufferedRecomposer {
   #buffer = "";
   readonly #holdback: number;
+  // The sentinel shortcut only holds when every surrogate carries the
+  // sentinel; synthetic surrogates do not, so every buffer is scanned.
+  readonly #allSentinel: boolean;
 
   constructor(private readonly mapping: ReadonlyMap<string, string>) {
     this.#holdback = mapping.size === 0
       ? 0
       : Math.max(...[...mapping.keys()].map((token) => token.length + 16));
+    this.#allSentinel = [...mapping.keys()].every((token) => mayContainSurrogate(token));
   }
 
   push(value: string): string {
@@ -151,7 +155,7 @@ class BufferedRecomposer {
   #replaceKnown(): void {
     // Every token carries the sentinel, so a buffer without it has nothing to
     // replace and does not need a pass per token.
-    if (!mayContainSurrogate(this.#buffer)) return;
+    if (this.#allSentinel && !mayContainSurrogate(this.#buffer)) return;
     for (const [token, original] of this.mapping) {
       this.#buffer = this.#buffer.replaceAll(token, original);
     }

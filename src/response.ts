@@ -53,6 +53,7 @@ export async function scanResponse(
   data: Record<string, unknown>,
   config: AppConfig,
   detectors: LocalDetector[],
+  surrogates: ReadonlyMap<string, string> = new Map(),
 ): Promise<ResponseScan> {
   const policy = resolveResponsePolicy(config);
   if (!policy.scan) return { data, evidence: UNSCANNED, denied: false, detectorDegraded: false };
@@ -65,8 +66,11 @@ export async function scanResponse(
     surfaces.map((text) => classifyDetectors(text, detectors)),
   );
   const detectorDegraded = results.some((result) => result.detectorDegraded);
+  // A surrogate of either style is the customer's own value in disguise.
   const perSurface = results.map((result) =>
-    result.findings.filter((finding) => !mayContainSurrogate(finding.value))
+    result.findings.filter((finding) =>
+      !mayContainSurrogate(finding.value) && !surrogates.has(finding.value)
+    )
   );
   const findingCounts: ResponseEvidence["findingCounts"] = {};
   for (const finding of perSurface.flat()) {
@@ -118,12 +122,13 @@ export async function observeResponseText(
   text: string,
   config: AppConfig,
   detectors: LocalDetector[],
+  surrogates: ReadonlyMap<string, string> = new Map(),
 ): Promise<ResponseEvidence["findingCounts"]> {
   if (!resolveResponsePolicy(config).scan || !text) return {};
   const result = await classifyDetectors(text, detectors);
   const counts: ResponseEvidence["findingCounts"] = {};
   for (const finding of result.findings) {
-    if (mayContainSurrogate(finding.value)) continue;
+    if (mayContainSurrogate(finding.value) || surrogates.has(finding.value)) continue;
     counts[finding.kind] = (counts[finding.kind] ?? 0) + 1;
   }
   return counts;
