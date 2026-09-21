@@ -2,7 +2,7 @@
 
 Date: 2026-09-21
 
-Measured implementation commit: `8c4e701` on `main` (the release commit for `v0.1.0-alpha.5` is this
+Measured implementation commit: `180795c` on `main` (the release commit for `v0.1.0-alpha.6` is this
 record's own docs-only successor; the implementation is identical)
 
 Runtime: Deno 2.9.4 on Apple Silicon, matching the CI pin
@@ -13,7 +13,7 @@ Suite: `egrysa-synthetic-v2`
 
 | Gate                                          |                                                  Result |
 | --------------------------------------------- | ------------------------------------------------------: |
-| Unit/integration tests                        |      156 passed, 0 failed, 1 ignored (opt-in live test) |
+| Unit/integration tests                        |      169 passed, 0 failed, 1 ignored (opt-in live test) |
 | Black-box compatibility acceptance            |                                      2 passed, 0 failed |
 | Expected data-class decisions                 |                                                   61/61 |
 | Exact expected finding sets                   |                                                   61/61 |
