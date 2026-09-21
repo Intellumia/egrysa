@@ -11,6 +11,10 @@ export class Metrics {
   responseRedactions = 0;
   responseDenials = 0;
   rateLimited = 0;
+  exportSent = 0;
+  exportDropped = 0;
+  exportFailedBatches = 0;
+  exportQueued = 0;
   inFlight = 0;
   #detectorLatencyCount = 0;
   #detectorLatencyTotalMs = 0;
@@ -46,6 +50,18 @@ export class Metrics {
       "# HELP egrysa_recomposition_failures_total Provider responses containing damaged surrogate tokens.",
       "# TYPE egrysa_recomposition_failures_total counter",
       `egrysa_recomposition_failures_total ${this.recompositionFailures}`,
+      "# HELP egrysa_export_sent_total Evidence records delivered to the export sink.",
+      "# TYPE egrysa_export_sent_total counter",
+      `egrysa_export_sent_total ${this.exportSent}`,
+      "# HELP egrysa_export_dropped_total Evidence records dropped because the export queue was full.",
+      "# TYPE egrysa_export_dropped_total counter",
+      `egrysa_export_dropped_total ${this.exportDropped}`,
+      "# HELP egrysa_export_failed_batches_total Export batches that failed and were retried.",
+      "# TYPE egrysa_export_failed_batches_total counter",
+      `egrysa_export_failed_batches_total ${this.exportFailedBatches}`,
+      "# HELP egrysa_export_queued Evidence records waiting for export.",
+      "# TYPE egrysa_export_queued gauge",
+      `egrysa_export_queued ${this.exportQueued}`,
       "# HELP egrysa_rate_limited_total Requests refused because a workload exceeded its rate limit.",
       "# TYPE egrysa_rate_limited_total counter",
       `egrysa_rate_limited_total ${this.rateLimited}`,

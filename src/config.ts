@@ -14,6 +14,7 @@ import {
   SENSITIVITIES,
   type WorkloadPolicy,
 } from "./types.ts";
+import { validateExportConfig } from "./export.ts";
 import { PROVIDER_CAPABILITY_TABLE } from "./provider_capabilities.ts";
 
 const DEFAULT_PATH = "config/egrysa.example.json";
@@ -117,6 +118,7 @@ export function validateConfig(config: AppConfig): void {
   validateRateLimit(config.policy);
   validateSurrogatePolicy(config.policy);
   validateWorkloads(config);
+  validateExportConfig(config);
   if (
     config.policy.sensitivity !== undefined &&
     !SENSITIVITIES.includes(config.policy.sensitivity)

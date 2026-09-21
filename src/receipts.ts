@@ -31,6 +31,8 @@ interface ReceiptInput {
 }
 
 export interface ReceiptStoreOptions {
+  // Called after a receipt's commit has completed; never before durability.
+  onCommitted?: (receipt: PrivacyReceipt) => void;
   fingerprintKey: string;
   privateKeyPkcs8: string;
   publicKeySpki: string;
@@ -96,6 +98,7 @@ export class ReceiptStore {
     this.#queue = staged.catch(() => undefined);
     return staged.then(async ({ receipt, durable }) => {
       await durable;
+      this.options.onCommitted?.(receipt);
       return receipt;
     });
   }
