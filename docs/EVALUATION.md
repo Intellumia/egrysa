@@ -37,6 +37,62 @@ Suite: `egrysa-synthetic-v2`
 | Ollama local generation through Egrysa        |         prior: `local_only` decision and signed receipt |
 | OpenAI provider-adapter generation            |              prior: one authorized `gpt-5.2` smoke test |
 
+## Task quality
+
+Acceptance gate 3 asks whether routing a request through the gateway degrades the answer. It had
+never been measured. `deno task eval:quality` measures it: each case in `evals/task_quality.jsonl`
+runs twice, once straight to the provider and once through an in-process gateway, and both answers
+are scored against the same deterministic assertions. No model judges another model.
+
+Measured 2026-09-23 on an Apple M4, against `llama3.1:8b` served by Ollama on loopback, ten cases,
+three runs per case per arm, `policy.sensitivity` balanced. The corpus digest is printed with every
+run.
+
+| Surrogate style       | Baseline pass | Gateway pass | Degradation | Mean similarity | Refusals |
+| --------------------- | ------------: | -----------: | ----------: | --------------: | -------: |
+| `token` (the default) |         90.0% |        46.7% |       43.3% |           0.566 |  4 cases |
+| `synthetic`           |         90.0% |        80.0% |       10.0% |           0.954 |     none |
+
+**The default style fails badly with a small model, and the cause is not subtle.** Asked to repeat a
+value, an 8B model rewrites the sentinel token: it changes case, breaks it across a line, or drops a
+delimiter. The gateway sees a damaged surrogate, cannot restore the original safely, and refuses
+with `502 recomposition_failed`. That is the fail-closed behaviour working as designed, and from the
+caller's seat it is still a lost answer. Four of ten cases were refused at least once.
+
+**Synthetic surrogates remove that failure entirely.** A value-shaped replacement is something a
+model copies as readily as the original, so nothing is damaged, nothing is refused, and the wording
+barely moves (0.954 similarity). At that setting the whole measured degradation is one case.
+
+That case is worth stating plainly, because it is a property of value substitution rather than a
+defect: sorting three IP addresses by their last number. The model sorts the surrogates it was
+given, correctly, and recomposition restores the originals into that order, which is the wrong order
+for the originals. **Any task whose answer depends on the magnitude, ordering, or arithmetic of a
+transformed value will be wrong, and no amount of engineering inside this boundary can fix it.**
+Route those workloads to a local model, or leave that class untransformed for them.
+
+One case (repeating an IBAN exactly) fails in both arms: the model will not reproduce it verbatim
+even without the gateway, so it measures the model rather than the boundary.
+
+| Category      | Baseline | Gateway, synthetic | Note                                                |
+| ------------- | -------: | -----------------: | --------------------------------------------------- |
+| summarisation |     100% |               100% |                                                     |
+| extraction    |     100% |               100% | JSON shape and values preserved                     |
+| drafting      |     100% |               100% |                                                     |
+| multi-turn    |     100% |               100% | value recalled across turns                         |
+| tool-use      |     100% |               100% | recomposed inside tool-call arguments               |
+| selection     |     100% |               100% | picked one contact, left the others out             |
+| rewriting     |     100% |               100% |                                                     |
+| control       |     100% |               100% | no sensitive values, so nothing was transformed     |
+| reasoning     |     100% |                 0% | ordering by transformed value, the limitation above |
+| transcription |       0% |                 0% | the model fails this one directly as well           |
+
+Latency, median per case: 1,496 ms direct and 1,648 ms through the gateway, so about 150 ms of the
+difference is the boundary and the rest is the model.
+
+These are reference measurements on one small local model, not a release gate and not a claim about
+any other model or workload. The number that matters is the client's own, on their workflow, which
+is what the harness exists to produce.
+
 ## Reference semantic detector evidence
 
 `evals/semantic_cases.jsonl` contains 18 implementation-authored cases: four person-name positives,

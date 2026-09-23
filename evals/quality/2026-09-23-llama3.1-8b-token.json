@@ -1,0 +1,336 @@
+{
+  "schemaVersion": "1",
+  "generatedAt": "2026-09-23T04:04:27.000Z",
+  "suite": "egrysa-task-quality-v1",
+  "provider": {
+    "id": "local",
+    "kind": "openai-compatible",
+    "model": "llama3.1:8b"
+  },
+  "repeats": 3,
+  "corpus": {
+    "path": "evals/task_quality.jsonl",
+    "cases": 10,
+    "sha256": "924bbce7df6d27f896a489754e6d3035a9a07e05be49c7d53faa7741222673b7"
+  },
+  "summary": {
+    "baselinePassRate": 0.9,
+    "gatewayPassRate": 0.4666666666666666,
+    "degradation": 0.4333333333333334,
+    "meanSimilarity": 0.566289348814531,
+    "surrogateResidueRuns": 0,
+    "baselineP50Ms": 2063.0474580000155,
+    "gatewayP50Ms": 3616.0644999999786
+  },
+  "categories": [
+    {
+      "category": "control",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "drafting",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 0
+    },
+    {
+      "category": "extraction",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "multi-turn",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 0
+    },
+    {
+      "category": "reasoning",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 0.3157894736842105
+    },
+    {
+      "category": "rewriting",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 0.6666666666666666,
+      "meanSimilarity": 0.4986191659762496
+    },
+    {
+      "category": "selection",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "summarisation",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 0
+    },
+    {
+      "category": "tool-use",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "transcription",
+      "baselinePassRate": 0,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 0.8484848484848485
+    }
+  ],
+  "cases": [
+    {
+      "id": "tq-001",
+      "category": "summarisation",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 33484.063540999996
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 41702.355874999994,
+        "decisions": [
+          "recomposition_failed",
+          "provider_timeout"
+        ]
+      },
+      "similarity": 0,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": [
+          "refused(recomposition_failed)",
+          "refused(provider_timeout)"
+        ]
+      }
+    },
+    {
+      "id": "tq-002",
+      "category": "extraction",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 40184.43816699996
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 28681.186749999993,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-003",
+      "category": "drafting",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 3132.8013330000103
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 3616.0644999999786,
+        "decisions": [
+          "recomposition_failed"
+        ]
+      },
+      "similarity": 0,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": [
+          "refused(recomposition_failed)"
+        ]
+      }
+    },
+    {
+      "id": "tq-004",
+      "category": "reasoning",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1612.5841249999357
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 4898.0674160000635,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 0.3157894736842105,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": [
+          "order(192.0.2.7,192.0.2.19,192.0.2.44)"
+        ]
+      }
+    },
+    {
+      "id": "tq-005",
+      "category": "multi-turn",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 679.9669580000918
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 1353.366541000083,
+        "decisions": [
+          "recomposition_failed"
+        ]
+      },
+      "similarity": 0,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": [
+          "refused(recomposition_failed)"
+        ]
+      }
+    },
+    {
+      "id": "tq-006",
+      "category": "tool-use",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 2063.0474580000155
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 3027.6224999999395,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-007",
+      "category": "transcription",
+      "baseline": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 1287.920541999978
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 1156.5647919999901,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 0.8484848484848485,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [
+          "contains(GB82 WEST 1234 5698 7654 32)"
+        ],
+        "gateway": [
+          "contains(GB82 WEST 1234 5698 7654 32)"
+        ]
+      }
+    },
+    {
+      "id": "tq-008",
+      "category": "rewriting",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 2357.4595840000547
+      },
+      "gateway": {
+        "passRate": 0.6666666666666666,
+        "meanScore": 0.6666666666666666,
+        "p50Ms": 3914.199332999997,
+        "decisions": [
+          "transform",
+          "recomposition_failed"
+        ]
+      },
+      "similarity": 0.4986191659762496,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": [
+          "refused(recomposition_failed)"
+        ]
+      }
+    },
+    {
+      "id": "tq-009",
+      "category": "selection",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 531.064291000017
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1471.4436250000726,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-010",
+      "category": "control",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 261.6316250000382
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 268.0320420000935,
+        "decisions": [
+          "allow_raw"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    }
+  ]
+}

@@ -7,6 +7,13 @@ public tag.
 
 ### Added
 
+- Task-quality measurement, acceptance gate 3, which nobody had measured. `deno task eval:quality`
+  runs every case in `evals/task_quality.jsonl` twice, once straight to the provider and once
+  through an in-process gateway, and scores both against the same deterministic assertions. The
+  first measurement is published in [the evaluation record](docs/EVALUATION.md): with the default
+  sentinel surrogates a small local model damages the token often enough to cost 43% of the baseline
+  pass rate through fail-closed refusals, and with synthetic surrogates that falls to 10%, all of it
+  one ordering case that no engineering inside the boundary can fix.
 - `docs/PENTEST_SCOPE.md`: the statement of work for an independent penetration test, naming the
   four claims a tester should try to falsify, the abuse cases worth paying for, what is out of
   scope, the environment, the rules of engagement, the deliverables including a publishable

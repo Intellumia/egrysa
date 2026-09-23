@@ -78,6 +78,11 @@ pack describes:
 - One contracted remote provider with `store: false` and your own model allowlist:
   `docs/OPERATIONS.md`, "Cloud-hosted providers".
 - Your corpus: `docs/CORPUS_BRIEF.md`. Measure with `deno task eval:adversarial --corpus=<file>`.
+- Task quality, the effect of the boundary on the answers themselves:
+  `EGRYSA_QUALITY_MODEL=<model> EGRYSA_QUALITY_CONFIG=<config> ./eval-kit/evidence.sh`, or
+  `deno task eval:quality` directly. Write your own cases in the shape of
+  `evals/task_quality.jsonl`; the published measurement and its one real limitation are in
+  `docs/EVALUATION.md`.
 - Load at your concurrency on your storage: `deno task bench:e2e`, and the HTTP harness of your
   choice against `--keep`.
 - Operations: `docs/RUNBOOKS.md` for policy change, upgrade, bypass, backup and restore;
