@@ -294,6 +294,8 @@ and an externally storable signed chain checkpoint are available at `/v1/receipt
 - [Governance](GOVERNANCE.md)
 - [Support](SUPPORT.md)
 - [Compatibility policy](docs/COMPATIBILITY.md)
+- [Runbooks](docs/RUNBOOKS.md)
+- [Penetration test scope](docs/PENTEST_SCOPE.md)
 - [Release process](docs/RELEASE.md)
 
 Apache-2.0 licensed. Egrysa is the selected product name. The repository records that external legal
