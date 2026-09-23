@@ -251,6 +251,24 @@ caching hit. The cost is linkability: a provider can tell that two requests from
 the same entity, without learning what it is. Choose `workload` scope only where that is acceptable,
 and rotate the fingerprint key to break the linkage.
 
+### Which style to choose
+
+Measured with a small local model, the choice is not cosmetic. With `token`, an 8B model asked to
+repeat a value frequently rewrites the sentinel, the gateway cannot restore it safely, and the
+request fails closed with `502 recomposition_failed`; measured task quality dropped 43% against an
+unfiltered baseline. With `synthetic`, nothing is damaged and the drop was 10%, all of it one
+ordering case. See [the evaluation record](EVALUATION.md) for the numbers and the method.
+
+Prefer `synthetic` when the workload asks the model to echo, quote, or act on the values, and when
+the model is small. Prefer `token` when a reviewer must see at a glance which parts of a prompt were
+transformed, and the model is large enough to copy a sentinel faithfully. Whichever you pick,
+measure it on your own workflow with `deno task eval:quality` rather than trusting these numbers.
+
+A limitation neither style removes: if the answer depends on the magnitude, ordering, or arithmetic
+of a transformed value, it will be wrong, because the model reasons over the surrogate and
+recomposition puts the originals back in the surrogates' order. Route those workloads to the local
+provider, or leave that class untransformed for them.
+
 ## OpenID Connect
 
 Static workload keys stay the default. A deployment with an identity provider can also accept the

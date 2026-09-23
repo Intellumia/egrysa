@@ -38,6 +38,19 @@ step audit          "$DENO" audit
 step bench-e2e      "$DENO" task bench:e2e
 step config-check   "$DENO" task config:check config/egrysa.stub.json
 
+# Task quality needs a model that can actually answer, so it runs only when one
+# is named. EGRYSA_QUALITY_CONFIG points at a configuration whose provider is
+# reachable; EGRYSA_QUALITY_MODEL names the model to use.
+if [ -n "${EGRYSA_QUALITY_MODEL:-}" ]; then
+  step task-quality "$DENO" task eval:quality \
+    "--config=${EGRYSA_QUALITY_CONFIG:-config/egrysa.example.json}" \
+    "--model=$EGRYSA_QUALITY_MODEL" \
+    "--repeats=${EGRYSA_QUALITY_REPEATS:-3}"
+else
+  echo "task-quality           skipped (set EGRYSA_QUALITY_MODEL to measure it)"
+  echo "task-quality: skipped" >> "$OUT/RESULTS.txt"
+fi
+
 for f in evals/adversarial.jsonl evals/scenarios.jsonl evals/cases.jsonl api/config.schema.json api/openapi.yaml; do
   [ -f "$f" ] && shasum -a 256 "$f"
 done > "$OUT/DIGESTS.txt"

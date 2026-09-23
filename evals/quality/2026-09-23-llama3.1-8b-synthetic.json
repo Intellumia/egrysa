@@ -1,0 +1,325 @@
+{
+  "schemaVersion": "1",
+  "generatedAt": "2026-09-23T04:06:51.089Z",
+  "suite": "egrysa-task-quality-v1",
+  "provider": {
+    "id": "local",
+    "kind": "openai-compatible",
+    "model": "llama3.1:8b"
+  },
+  "repeats": 3,
+  "corpus": {
+    "path": "evals/task_quality.jsonl",
+    "cases": 10,
+    "sha256": "924bbce7df6d27f896a489754e6d3035a9a07e05be49c7d53faa7741222673b7"
+  },
+  "summary": {
+    "baselinePassRate": 0.9,
+    "gatewayPassRate": 0.8,
+    "degradation": 0.09999999999999998,
+    "meanSimilarity": 0.9541384113565652,
+    "surrogateResidueRuns": 0,
+    "baselineP50Ms": 1496.0525000000007,
+    "gatewayP50Ms": 1647.6462089999995
+  },
+  "categories": [
+    {
+      "category": "control",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "drafting",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 0.8533465388201407
+    },
+    {
+      "category": "extraction",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "multi-turn",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "reasoning",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 0.7843137254901961
+    },
+    {
+      "category": "rewriting",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 0.903723849255314
+    },
+    {
+      "category": "selection",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "summarisation",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "tool-use",
+      "baselinePassRate": 1,
+      "gatewayPassRate": 1,
+      "meanSimilarity": 1
+    },
+    {
+      "category": "transcription",
+      "baselinePassRate": 0,
+      "gatewayPassRate": 0,
+      "meanSimilarity": 1
+    }
+  ],
+  "cases": [
+    {
+      "id": "tq-001",
+      "category": "summarisation",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1496.0525000000007
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1647.6462089999995,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-002",
+      "category": "extraction",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1781.1904579999991
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1816.7717090000006,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-003",
+      "category": "drafting",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 3758.8932910000003
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 3697.5695000000014,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 0.8533465388201407,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-004",
+      "category": "reasoning",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1332.729916999997
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 1537.4503750000003,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 0.7843137254901961,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": [
+          "order(192.0.2.7,192.0.2.19,192.0.2.44)"
+        ]
+      }
+    },
+    {
+      "id": "tq-005",
+      "category": "multi-turn",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 434.8209160000042
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 734.9987499999988,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-006",
+      "category": "tool-use",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1836.201083
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 1960.9842500000013,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-007",
+      "category": "transcription",
+      "baseline": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 1085.504541000002
+      },
+      "gateway": {
+        "passRate": 0,
+        "meanScore": 0,
+        "p50Ms": 1472.781707999995,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [
+          "contains(GB82 WEST 1234 5698 7654 32)"
+        ],
+        "gateway": [
+          "contains(GB82 WEST 1234 5698 7654 32)"
+        ]
+      }
+    },
+    {
+      "id": "tq-008",
+      "category": "rewriting",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 2543.5003339999967
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 2675.6589999999997,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 0.903723849255314,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-009",
+      "category": "selection",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 410.1287910000101
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 773.7049169999955,
+        "decisions": [
+          "transform"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    },
+    {
+      "id": "tq-010",
+      "category": "control",
+      "baseline": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 256.57416699999885
+      },
+      "gateway": {
+        "passRate": 1,
+        "meanScore": 1,
+        "p50Ms": 262.25954099999217,
+        "decisions": [
+          "allow_raw"
+        ]
+      },
+      "similarity": 1,
+      "surrogateResidue": 0,
+      "failedAssertions": {
+        "baseline": [],
+        "gateway": []
+      }
+    }
+  ]
+}
