@@ -140,7 +140,21 @@ jobs:
             aarch64-unknown-linux-gnu; do
             rm -rf pkg
             mkdir -p pkg/egrysa
-            deno compile $FLAGS --target "$TARGET" --output pkg/egrysa/egrysa src/main.ts
+            # Cross-compiling downloads that platform's runtime. A stalled
+            # download would otherwise hold the job until its timeout and
+            # burn the tag, so bound each attempt and retry.
+            for ATTEMPT in 1 2 3; do
+              rm -f pkg/egrysa/egrysa pkg/egrysa/egrysa.tmp-*
+              if timeout 300 deno compile $FLAGS --target "$TARGET" --output pkg/egrysa/egrysa src/main.ts; then
+                break
+              fi
+              if [ "$ATTEMPT" = 3 ]; then
+                echo "compiling for $TARGET failed or stalled three times" >&2
+                exit 1
+              fi
+              echo "compiling for $TARGET failed or stalled; retrying" >&2
+              sleep 10
+            done
             cp -r config pkg/egrysa/
             cp LICENSE README.md pkg/egrysa/
             tar -czf "egrysa-${GITHUB_REF_NAME}-${TARGET}.tar.gz" -C pkg egrysa
