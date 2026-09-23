@@ -7,6 +7,10 @@ public tag.
 
 ### Added
 
+- `docs/PENTEST_SCOPE.md`: the statement of work for an independent penetration test, naming the
+  four claims a tester should try to falsify, the abuse cases worth paying for, what is out of
+  scope, the environment, the rules of engagement, the deliverables including a publishable
+  attestation, and the acceptance condition for CISO brief gate 8.
 - `deno task smoke:cloud`: opt-in live checks for Azure OpenAI, Bedrock, and Vertex AI through the
   whole gateway (transform out, recompose back, receipt verifies with completed egress, streaming
   ends with `[DONE]`), each skipped unless its credentials and endpoint details are in `.env.local`.
