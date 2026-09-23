@@ -226,6 +226,10 @@ public tag.
 
 ### Fixed
 
+- The group-commit test counted real fsyncs, so on a host where fsync returns in microseconds each
+  receipt legitimately took its own commit and the test failed. It now holds each commit open while
+  it counts, which makes the property it asserts, that concurrent callers share a commit, the thing
+  being measured rather than the speed of the runner's disk.
 - The Kubernetes ConfigMap left `person_name`, `physical_address`, and `semantic_confidential`
   without a policy action after the taxonomy expansion, so the shipped manifest failed validation at
   startup. The compatibility test now runs every shipped configuration, including the ConfigMap,
