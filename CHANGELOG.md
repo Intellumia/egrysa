@@ -14,6 +14,18 @@ public tag.
   sentinel surrogates a small local model damages the token often enough to cost 43% of the baseline
   pass rate through fail-closed refusals, and with synthetic surrogates that falls to 10%, all of it
   one ordering case that no engineering inside the boundary can fix.
+- Standalone binaries for macOS and Linux on both architectures, built by the release workflow with
+  the gateway's permissions compiled in, packaged with the example configurations and hashed into
+  the release's signed `SHA256SUMS`.
+- Homebrew and npm installs, both pinning a hash that the signed manifest covers.
+  `brew tap intellumia/egrysa https://github.com/Intellumia/egrysa` serves the formula from this
+  repository, so there is no second repository to trust; `npm install -g egrysa` downloads the same
+  binary and refuses to install on a hash mismatch. `tools/package_release.ts`
+  (`deno task package:release`) generates both from a verified release, and
+  [docs/INSTALL.md](docs/INSTALL.md) compares what each path gives up.
+- `egrysa --version` and `egrysa --help`, which a packaged binary is asked for before it is asked to
+  run. The version lives in `src/version.ts` and a compatibility test holds it equal to the version
+  in `api/openapi.yaml`.
 - `docs/PENTEST_SCOPE.md`: the statement of work for an independent penetration test, naming the
   four claims a tester should try to falsify, the abuse cases worth paying for, what is out of
   scope, the environment, the rules of engagement, the deliverables including a publishable

@@ -120,6 +120,33 @@ jobs:
           test -n "$DIGEST"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           echo "reference=$REFERENCE" >> "$GITHUB_OUTPUT"
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: "2.9.4" }
+      - name: Build standalone binaries for the package managers
+        run: |
+          # One self-contained executable per platform, with the gateway's
+          # permissions compiled in, packaged beside the example
+          # configurations and the licence so an install is usable on its own.
+          # The permission flags come from the compile task rather than being
+          # repeated here, so the two cannot drift; only the output path and
+          # the target are supplied per platform. The hashes join SHA256SUMS
+          # below, so a package manager that pins one pins an artefact the
+          # signed manifest covers.
+          FLAGS="$(deno eval 'const task = JSON.parse(Deno.readTextFileSync("deno.json")).tasks.compile; console.log(task.replace(/^deno compile /, "").replace(/ --output \S+ src\/main\.ts$/, ""))')"
+          for TARGET in \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin \
+            x86_64-unknown-linux-gnu \
+            aarch64-unknown-linux-gnu; do
+            rm -rf pkg
+            mkdir -p pkg/egrysa
+            deno compile $FLAGS --target "$TARGET" --output pkg/egrysa/egrysa src/main.ts
+            cp -r config pkg/egrysa/
+            cp LICENSE README.md pkg/egrysa/
+            tar -czf "egrysa-${GITHUB_REF_NAME}-${TARGET}.tar.gz" -C pkg egrysa
+          done
+          rm -rf pkg
+          ls -l egrysa-*.tar.gz
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with: { cosign-release: "v3.0.6" }
       - name: Sign image by immutable digest
@@ -172,6 +199,7 @@ jobs:
             "github_attestation=${PROVENANCE_URL}" \
             > release-evidence.txt
           sha256sum \
+            egrysa-*.tar.gz \
             sbom.cdx.json \
             sbom.cdx.sigstore.json \
             provenance.bundle.jsonl \
@@ -191,6 +219,7 @@ jobs:
         with:
           name: egrysa-release-evidence-${{ github.ref_name }}
           path: |
+            egrysa-*.tar.gz
             sbom.cdx.json
             sbom.cdx.sigstore.json
             provenance.bundle.jsonl
