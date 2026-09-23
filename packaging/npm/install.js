@@ -12,7 +12,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const zlib = require("node:zlib");
 const { execFileSync } = require("node:child_process");
 
 const manifest = require("./manifest.json");
@@ -32,7 +31,7 @@ if (!entry) {
 const target = path.join(__dirname, "bin", "egrysa");
 const archive = path.join(__dirname, entry.file);
 
-async function download(url, redirects = 5) {
+async function download(url) {
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok) {
     throw new Error(`downloading ${url} failed with ${response.status}`);
