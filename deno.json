@@ -36,6 +36,7 @@
     "conformance:matrix": "deno run --no-prompt --allow-read=README.md,evals/conformance --allow-write=README.md tools/provider_matrix.ts",
     "acceptance": "deno test --allow-env --allow-read --allow-write --allow-net=127.0.0.1 tests/acceptance_test.ts",
     "keygen": "deno run --no-prompt tools/keygen.ts",
+    "package:release": "deno run --no-prompt --allow-read --allow-write=Formula,packaging tools/package_release.ts",
     "config:check": "deno run --no-prompt --allow-read --allow-env=EGRYSA_CONFIG tools/validate_config.ts",
     "receipts:verify": "deno run --no-prompt --allow-read tools/verify_receipt_log.ts",
     "start": "deno run --frozen --cached-only --no-prompt --allow-read=config,data --allow-write=data --allow-env=EGRYSA_CONFIG,EGRYSA_INBOUND_KEYS,EGRYSA_AUDITOR_KEYS,EGRYSA_EXPORT_HEADERS,EGRYSA_RECEIPT_FINGERPRINT_KEY,EGRYSA_RECEIPT_ED25519_PRIVATE_KEY,EGRYSA_RECEIPT_ED25519_PUBLIC_KEY,EGRYSA_RECEIPT_CHAIN_SUFFIX,EGRYSA_SIGNER_HEADERS,OPENAI_API_KEY,ANTHROPIC_API_KEY,AZURE_OPENAI_API_KEY,AWS_BEARER_TOKEN_BEDROCK,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,GOOGLE_ACCESS_TOKEN,GOOGLE_SERVICE_ACCOUNT_JSON --allow-net=0.0.0.0:8787,api.openai.com,api.anthropic.com,localhost:11434,127.0.0.1:11436 src/main.ts",

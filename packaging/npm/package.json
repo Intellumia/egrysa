@@ -1,0 +1,45 @@
+{
+  "name": "egrysa",
+  "version": "0.1.0-alpha.7",
+  "description": "Customer-owned AI egress boundary with signed, content-free receipts",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Intellumia/egrysa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Intellumia/egrysa.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Intellumia/egrysa/issues"
+  },
+  "keywords": [
+    "llm",
+    "gateway",
+    "pii",
+    "egress",
+    "privacy",
+    "audit"
+  ],
+  "bin": {
+    "egrysa": "bin/egrysa.js"
+  },
+  "files": [
+    "bin/egrysa.js",
+    "install.js",
+    "manifest.json",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

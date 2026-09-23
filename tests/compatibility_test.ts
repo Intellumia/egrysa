@@ -12,6 +12,7 @@ import {
   PROVIDER_KINDS,
   SENSITIVITIES,
 } from "../src/types.ts";
+import { EGRYSA_VERSION } from "../src/version.ts";
 import { configureTestEnvironment } from "./environment.ts";
 import { testConfig } from "./fixtures.ts";
 
@@ -206,6 +207,16 @@ Deno.test("schema enumerations match the code", () => {
         `${name}: schema lists ${JSON.stringify(listed)}, code has ${JSON.stringify(code)}`,
       );
     }
+  }
+});
+
+Deno.test("the binary reports the version the API document names", () => {
+  // The compatibility policy ties api/openapi.yaml's version to the tag, and a
+  // packaged binary has no repository to read, so the constant it is compiled
+  // with has to agree. The release checklist bumps both before tagging.
+  const documented = openapi.match(/^ {2}version: (\S+)$/m)?.[1];
+  if (documented !== EGRYSA_VERSION) {
+    throw new Error(`api/openapi.yaml says ${documented}, src/version.ts says ${EGRYSA_VERSION}`);
   }
 });
 

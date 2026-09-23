@@ -293,6 +293,7 @@ and an externally storable signed chain checkpoint are available at `/v1/receipt
 - [Roadmap](ROADMAP.md)
 - [Governance](GOVERNANCE.md)
 - [Support](SUPPORT.md)
+- [Installing](docs/INSTALL.md)
 - [Compatibility policy](docs/COMPATIBILITY.md)
 - [Runbooks](docs/RUNBOOKS.md)
 - [Penetration test scope](docs/PENTEST_SCOPE.md)
