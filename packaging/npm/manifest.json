@@ -4,22 +4,22 @@
   "binaries": {
     "darwin-arm64": {
       "url": "https://github.com/Intellumia/egrysa/releases/download/v0.1.0-alpha.7/egrysa-v0.1.0-alpha.7-aarch64-apple-darwin.tar.gz",
-      "sha256": "e935e6efdb6a61eafb448b8f82214a2ec6a04da58ab54a71e7c53f1ab1f1f50f",
+      "sha256": "19b52f9647582968f9092c0c5d8c98e3735149394ca4108f556f53b6d8668df7",
       "file": "egrysa-v0.1.0-alpha.7-aarch64-apple-darwin.tar.gz"
     },
     "darwin-x64": {
       "url": "https://github.com/Intellumia/egrysa/releases/download/v0.1.0-alpha.7/egrysa-v0.1.0-alpha.7-x86_64-apple-darwin.tar.gz",
-      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sha256": "eb93f8e190fe0eb71d52b8f1a7d12b38faba9c371feaf4f587bc540345a12488",
       "file": "egrysa-v0.1.0-alpha.7-x86_64-apple-darwin.tar.gz"
     },
     "linux-arm64": {
       "url": "https://github.com/Intellumia/egrysa/releases/download/v0.1.0-alpha.7/egrysa-v0.1.0-alpha.7-aarch64-unknown-linux-gnu.tar.gz",
-      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "sha256": "4b31b5081efa82d41354aba1dd8a96a89d8c0643cf71997564ac43d4bb570f17",
       "file": "egrysa-v0.1.0-alpha.7-aarch64-unknown-linux-gnu.tar.gz"
     },
     "linux-x64": {
       "url": "https://github.com/Intellumia/egrysa/releases/download/v0.1.0-alpha.7/egrysa-v0.1.0-alpha.7-x86_64-unknown-linux-gnu.tar.gz",
-      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "sha256": "2cd5c73adbb3b60cdf84070f8ce418043ef659aaddba99447b257cc07292ef2f",
       "file": "egrysa-v0.1.0-alpha.7-x86_64-unknown-linux-gnu.tar.gz"
     }
   }

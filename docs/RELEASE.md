@@ -131,12 +131,13 @@ instructions.
 
 Recorded results:
 
-| Tag              | Verified   | Result                                                                                                   |
-| ---------------- | ---------- | -------------------------------------------------------------------------------------------------------- |
-| `v0.1.0-alpha.3` | 2026-08-09 | 7 of 7 checks passed, using the pre-move signer identity                                                 |
-| `v0.1.0-alpha.4` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release |
-| `v0.1.0-alpha.5` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release |
-| `v0.1.0-alpha.6` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release |
+| Tag              | Verified   | Result                                                                                                                                                                  |
+| ---------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.1.0-alpha.3` | 2026-08-09 | 7 of 7 checks passed, using the pre-move signer identity                                                                                                                |
+| `v0.1.0-alpha.4` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release                                                                |
+| `v0.1.0-alpha.5` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release                                                                |
+| `v0.1.0-alpha.6` | 2026-09-21 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release                                                                |
+| `v0.1.0-alpha.7` | 2026-09-23 | 7 of 7 checks passed from the retained artifact before publication, and again from the published release; first release with standalone binaries in the signed manifest |
 
 The signed checksum bundle makes the retained files independently verifiable even if a registry or
 API later stops indexing an attached artifact. The registry checks additionally prove that the
@@ -211,6 +212,21 @@ the corpus must contain them.
 - `v0.1.0-alpha.3` is the next release target. Its CycloneDX document is a separately keyless-signed
   release asset, avoiding the registry predicate collision. It must pass retained and independent
   verification before a GitHub release is created.
+
+## Package managers
+
+After a release is published and `tools/verify-release.sh` has passed against it, generate the
+package-manager metadata from the verified evidence and land it through a pull request:
+
+```sh
+deno task package:release --tag=<tag> --sums=<evidence dir>/SHA256SUMS
+```
+
+That rewrites `Formula/egrysa.rb` and `packaging/npm/manifest.json` with the hashes from the signed
+manifest. Merging it makes `brew install intellumia/egrysa/egrysa` resolve to the new release.
+Publishing the npm package is a separate, manual step by a maintainer with npm access:
+`cd packaging/npm && npm publish`. Never edit either file's hashes by hand, and never generate them
+from an unverified download.
 
 ## Alpha and beta versioning
 
