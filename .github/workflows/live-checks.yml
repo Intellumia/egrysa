@@ -1,0 +1,40 @@
+name: Live provider checks
+# Runs the opt-in live checks in tests/live_cloud_test.ts against whichever
+# cloud providers have credentials configured, so the checks need no
+# maintainer machine. Each provider is skipped unless its secret and its
+# endpoint variables are set. Credentials are GitHub Actions secrets;
+# endpoint details that are not secret are repository variables. Nothing is
+# printed but the provider, model, and receipt id.
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  live:
+    name: Live checks through the gateway
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: "2.9.4" }
+      - name: Run the live checks
+        env:
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          EGRYSA_LIVE_AZURE_ENDPOINT: ${{ vars.EGRYSA_LIVE_AZURE_ENDPOINT }}
+          EGRYSA_LIVE_AZURE_DEPLOYMENT: ${{ vars.EGRYSA_LIVE_AZURE_DEPLOYMENT }}
+          EGRYSA_LIVE_AZURE_API_VERSION: ${{ vars.EGRYSA_LIVE_AZURE_API_VERSION }}
+          EGRYSA_LIVE_AZURE_MODEL: ${{ vars.EGRYSA_LIVE_AZURE_MODEL }}
+          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          EGRYSA_LIVE_BEDROCK_REGION: ${{ vars.EGRYSA_LIVE_BEDROCK_REGION }}
+          EGRYSA_LIVE_BEDROCK_MODEL: ${{ vars.EGRYSA_LIVE_BEDROCK_MODEL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_ACCESS_TOKEN: ${{ secrets.GOOGLE_ACCESS_TOKEN }}
+          EGRYSA_LIVE_VERTEX_PROJECT: ${{ vars.EGRYSA_LIVE_VERTEX_PROJECT }}
+          EGRYSA_LIVE_VERTEX_REGION: ${{ vars.EGRYSA_LIVE_VERTEX_REGION }}
+          EGRYSA_LIVE_VERTEX_MODEL: ${{ vars.EGRYSA_LIVE_VERTEX_MODEL }}
+        run: deno test --no-prompt --allow-net --allow-env --allow-read --allow-write tests/live_cloud_test.ts

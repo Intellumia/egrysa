@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ \"$CLAUDE_CODE_REMOTE\" = \"true\" ]; then if ! command -v deno >/dev/null 2>&1 && [ ! -x \"$HOME/.deno/bin/deno\" ]; then curl -fsSL https://deno.land/install.sh | sh -s v2.9.4 >/dev/null 2>&1 || true; fi; if [ -n \"$CLAUDE_ENV_FILE\" ]; then echo 'export PATH=\"$HOME/.deno/bin:$PATH\"' >> \"$CLAUDE_ENV_FILE\"; fi; fi; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

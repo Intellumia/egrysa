@@ -89,6 +89,10 @@ even without the gateway, so it measures the model rather than the boundary.
 Latency, median per case: 1,496 ms direct and 1,648 ms through the gateway, so about 150 ms of the
 difference is the boundary and the rest is the model.
 
+To repeat the measurement without a local machine, run the **Task quality** workflow: it serves a
+small open model with Ollama inside the job, or uses a hosted model through the `OPENAI_API_KEY`
+secret, and keeps the report as a workflow artefact.
+
 These are reference measurements on one small local model, not a release gate and not a claim about
 any other model or workload. The number that matters is the client's own, on their workflow, which
 is what the harness exists to produce.

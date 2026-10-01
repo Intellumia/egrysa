@@ -1,0 +1,97 @@
+name: Task quality
+# Measures whether routing through the gateway changes the model's answers,
+# with `deno task eval:quality`, without a maintainer machine. Two sources:
+# a small open model served by Ollama inside the job (no credentials, slow on
+# CPU), or a hosted OpenAI model using the OPENAI_API_KEY secret. The report
+# carries counts, scores, and timings, never a prompt or an answer, and is
+# kept as a workflow artefact.
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "ollama (in-job, no credentials) or openai (uses the OPENAI_API_KEY secret)"
+        type: choice
+        options: [ollama, openai]
+        default: ollama
+      model:
+        description: "Model name; for ollama a small model such as qwen2.5:3b, for openai one the example config allows"
+        type: string
+        default: qwen2.5:3b
+      style:
+        description: "Surrogate style to measure"
+        type: choice
+        options: [synthetic, token]
+        default: synthetic
+      repeats:
+        description: "Runs per case per arm"
+        type: string
+        default: "1"
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Measure task quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    services:
+      ollama:
+        # Pinned by digest; only used when source is ollama.
+        image: ollama/ollama@sha256:2a6e883b917fc543389599dae79918f5cac9e1438890506982f44aa4f5625d01
+        ports: ["11434:11434"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: "2.9.4" }
+      - name: Pull the model into the in-job Ollama
+        if: inputs.source == 'ollama'
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          curl -fsS --retry 5 --retry-connrefused http://127.0.0.1:11434/api/version
+          curl -fsS http://127.0.0.1:11434/api/pull -d "{\"model\":\"${MODEL}\",\"stream\":false}"
+      - name: Write the measurement configuration
+        env:
+          SOURCE: ${{ inputs.source }}
+          MODEL: ${{ inputs.model }}
+          STYLE: ${{ inputs.style }}
+        run: |
+          deno eval '
+            const config = JSON.parse(Deno.readTextFileSync("config/egrysa.example.json"));
+            const source = Deno.env.get("SOURCE"), model = Deno.env.get("MODEL");
+            const local = config.providers.find((p) => p.id === "local");
+            if (source === "ollama") {
+              local.baseUrl = "http://localhost:11434/v1";
+              local.allowedModels = [model];
+              config.semanticDetector.model = model;
+              config.policy.defaultProvider = "local";
+            } else {
+              const openai = config.providers.find((p) => p.id === "openai");
+              if (!openai.allowedModels.includes(model)) openai.allowedModels.push(model);
+              config.policy.defaultProvider = "openai";
+            }
+            config.receiptLogPath = ":memory:";
+            config.requestTimeoutMs = 300000;
+            config.policy.surrogates = { style: Deno.env.get("STYLE"), scope: "request" };
+            Deno.writeTextFileSync("evals/quality-run.json", JSON.stringify(config, null, 2));
+          '
+      - name: Measure
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL: ${{ inputs.model }}
+          REPEATS: ${{ inputs.repeats }}
+          SOURCE: ${{ inputs.source }}
+          STYLE: ${{ inputs.style }}
+        run: |
+          PROVIDER=local; [ "$SOURCE" = "openai" ] && PROVIDER=openai
+          deno task eval:quality --config=evals/quality-run.json --provider="$PROVIDER" \
+            --model="$MODEL" --repeats="$REPEATS" \
+            --out="evals/quality-${SOURCE}-${STYLE}.json" > /dev/null
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: task-quality-${{ inputs.source }}-${{ inputs.style }}-${{ github.run_id }}
+          path: evals/quality-*.json
+          if-no-files-found: warn
+          retention-days: 90

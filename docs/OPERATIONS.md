@@ -219,8 +219,13 @@ model, and receipt id.
 
 The task runs the test runner, not the gateway, with unrestricted network and environment
 permissions because the hosts are deployment-specific; the gateway itself keeps its explicit lists.
-After a passing live check, run `deno task conformance -- --provider <id>` with the same provider in
-a configuration file to produce the dated report the README support matrix is built from.
+
+The same checks run without any maintainer machine from the **Live provider checks** workflow
+(Actions, run workflow). It reads the credentials above from GitHub Actions secrets of the same
+names, and the endpoint details (`EGRYSA_LIVE_*`) from repository variables, so nothing secret is
+ever written to the repository. A provider without both is skipped. After a passing live check, run
+`deno task conformance -- --provider <id>` with the same provider in a configuration file to produce
+the dated report the README support matrix is built from.
 
 ## Surrogate style and scope
 

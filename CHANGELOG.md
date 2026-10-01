@@ -7,6 +7,13 @@ public tag.
 
 ### Added
 
+- Work without a maintainer machine. `CLAUDE.md` gives every Claude Code session, including cloud
+  sessions started from GitHub, the working rules: how changes land, the frozen surfaces, the
+  release procedure, and how secrets are handled. `.claude/settings.json` installs the pinned Deno
+  when a cloud session starts. Two on-demand workflows replace work that needed a local machine:
+  **Live provider checks** runs the Azure, Bedrock and Vertex checks from Actions secrets and
+  repository variables, and **Task quality** runs `deno task eval:quality` against a small model
+  served inside the job or a hosted model.
 - Task-quality measurement, acceptance gate 3, which nobody had measured. `deno task eval:quality`
   runs every case in `evals/task_quality.jsonl` twice, once straight to the provider and once
   through an in-process gateway, and scores both against the same deterministic assertions. The
