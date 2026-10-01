@@ -1,0 +1,111 @@
+name: Cut release
+# Creates the signed release tag from GitHub, so no maintainer machine or
+# long-lived signing key is involved. The tag is signed keylessly with gitsign:
+# the certificate binds it to this workflow on main, and the signature is
+# recorded in the public Sigstore transparency log, the same log the release
+# evidence already uses. Only people who can run workflows on this repository
+# can cut a release.
+#
+# Before running it, merge a pull request that sets the version in
+# src/version.ts and api/openapi.yaml and adds docs/releases/v<version>.md.
+#
+# The tag is pushed with RELEASE_TAG_TOKEN, a fine-grained token with contents
+# and pull-request write access to this repository. A tag pushed with the
+# workflow's own token would not start the release workflow; GitHub does not
+# let one workflow's pushes trigger another.
+#
+# Leave "dry run" ticked to check everything and sign a throwaway local tag
+# without pushing anything.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (for example 0.1.0-alpha.8)"
+        type: string
+        required: true
+      dry_run:
+        description: "Check and sign locally, but push nothing"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  cut:
+    name: Check, sign, and push the release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # Request the workflow identity gitsign signs with.
+      checks: read # Read the CI result for the commit being tagged.
+    steps:
+      - name: Require main
+        run: test "$GITHUB_REF" = "refs/heads/main" || { echo "Cut releases from main only." >&2; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the version, the notes, and that the tag is new
+        env:
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Not a version: $VERSION" >&2; exit 1; }
+          CODE="$(sed -n 's/^export const EGRYSA_VERSION = "\(.*\)";$/\1/p' src/version.ts)"
+          API="$(sed -n 's/^  version: \(.*\)$/\1/p' api/openapi.yaml | head -1)"
+          [ "$CODE" = "$VERSION" ] || { echo "src/version.ts says $CODE, not $VERSION" >&2; exit 1; }
+          [ "$API" = "$VERSION" ] || { echo "api/openapi.yaml says $API, not $VERSION" >&2; exit 1; }
+          test -f "docs/releases/v${VERSION}.md" || { echo "Missing docs/releases/v${VERSION}.md" >&2; exit 1; }
+          if [ "$DRY_RUN" != "true" ] && git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "Tag v${VERSION} already exists. Tags are never moved or reused." >&2; exit 1
+          fi
+      - name: Require a green CI run on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RESULT="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=Test%20and%20audit" \
+            --jq '[.check_runs[] | .conclusion] | if length == 0 then "missing" elif all(. == "success") then "success" else "failure" end')"
+          [ "$RESULT" = "success" ] || { echo "Test and audit is $RESULT on ${GITHUB_SHA}" >&2; exit 1; }
+      - name: Install gitsign, pinned and checksum-verified
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/bin/gitsign" \
+            https://github.com/sigstore/gitsign/releases/download/v0.17.1/gitsign_0.17.1_linux_amd64
+          echo "69213a8a0813a151e5a47d0060862952ff833a845d57309dff76f7ba6600abae  $RUNNER_TEMP/bin/gitsign" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bin/gitsign"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Sign the tag keylessly and verify the signature
+        env:
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          GITSIGN_TOKEN_PROVIDER: github-actions
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          [ "$DRY_RUN" = "true" ] && TAG="dry-run-v${VERSION}-${GITHUB_RUN_ID}"
+          git config user.name "$ACTOR"
+          git config user.email "${ACTOR_ID}+${ACTOR}@users.noreply.github.com"
+          git config gpg.format x509
+          git config gpg.x509.program gitsign
+          git tag -s "$TAG" -m "Egrysa v${VERSION}" -m "Release notes: docs/releases/v${VERSION}.md" "$GITHUB_SHA"
+          gitsign verify-tag "$TAG" \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/cut-release.yml@refs/heads/main" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Push the tag, which starts the release workflow
+        if: ${{ !inputs.dry_run }}
+        env:
+          RELEASE_TAG_TOKEN: ${{ secrets.RELEASE_TAG_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ -n "$RELEASE_TAG_TOKEN" ] || { echo "Set the RELEASE_TAG_TOKEN secret first; see docs/RELEASE.md." >&2; exit 1; }
+          git push "https://x-access-token:${RELEASE_TAG_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
+          echo "Pushed ${TAG}. The Release image workflow builds, verifies, and publishes it." >> "$GITHUB_STEP_SUMMARY"
+      - name: Report the dry run
+        if: ${{ inputs.dry_run }}
+        run: echo "Dry run passed. Signed and verified ${TAG} locally; nothing was pushed." >> "$GITHUB_STEP_SUMMARY"

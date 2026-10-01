@@ -7,6 +7,12 @@ public tag.
 
 ### Added
 
+- Releases are cut from GitHub. The **Cut release** workflow checks the version markers, the release
+  notes and the CI result, signs the tag keylessly with gitsign, verifies the signature against its
+  own identity, and pushes it. The release workflow now also verifies the retained evidence, checks
+  the tag signature, publishes the release, verifies it again from the published assets, and opens
+  the Homebrew and npm pull request. Release notes live at `docs/releases/v<version>.md`. No
+  maintainer machine or long-lived signing key is involved.
 - Work without a maintainer machine. `CLAUDE.md` gives every Claude Code session, including cloud
   sessions started from GitHub, the working rules: how changes land, the frozen surfaces, the
   release procedure, and how secrets are handled. `.claude/settings.json` installs the pinned Deno
