@@ -55,12 +55,14 @@ within a version, or it waits for the next minor version and is announced a rele
 
 ## Releases
 
-[docs/RELEASE.md](docs/RELEASE.md) is the procedure; follow it in order. The version in
-`src/version.ts` and `info.version` in `api/openapi.yaml` must equal the tag without its `v`. The
-release workflow builds and signs everything; nothing is published until `tools/verify-release.sh`
-has passed against the retained evidence, and it is run again against the published release. After
-publication, `deno task package:release` generates the Homebrew formula and the npm manifest from
-the verified evidence.
+[docs/RELEASE.md](docs/RELEASE.md) is the procedure; follow it in order. Releases are cut from
+GitHub with the **Cut release** workflow: no local machine or signing key is involved, and the
+release workflow verifies, publishes, re-verifies, and opens the Homebrew and npm pull request
+itself. The version in `src/version.ts` and `info.version` in `api/openapi.yaml` must equal the tag
+without its `v`. The release workflow builds and signs everything; nothing is published until
+`tools/verify-release.sh` has passed against the retained evidence, and it is run again against the
+published release. After publication, `deno task package:release` generates the Homebrew formula and
+the npm manifest from the verified evidence.
 
 ## Writing
 

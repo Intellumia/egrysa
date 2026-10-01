@@ -1,5 +1,33 @@
 # Release process
 
+## Cutting a release
+
+Releases are cut from GitHub. No maintainer machine, local toolchain, or long-lived signing key is
+involved.
+
+1. **Prepare.** Open a pull request that sets the version in `src/version.ts` and `info.version` in
+   `api/openapi.yaml`, adds the release notes at `docs/releases/v<version>.md` (what changed and the
+   scope statement; the verification section is generated), refreshes the evaluation record's
+   measured commit, and keeps `CHANGELOG.md` current. Merge it once the required checks pass.
+2. **Dry run.** In Actions, run **Cut release** with the version and leave _dry run_ ticked. It
+   checks the version markers, the notes, and the CI result on `main`, then signs and verifies a
+   throwaway local tag. Nothing is pushed.
+3. **Cut.** Run **Cut release** again with _dry run_ unticked. It signs the tag keylessly with
+   gitsign, verifies the signature against its own identity, and pushes the tag, which starts the
+   release workflow.
+4. **Wait.** The release workflow builds, scans, signs and attests the image and the binaries,
+   retains the evidence, verifies the retained evidence with `tools/verify-release.sh`, verifies the
+   tag signature, publishes the release, and verifies it again from the published assets. Nothing is
+   published unless the first verification passed.
+5. **Packages.** The release workflow then opens a pull request that points Homebrew and npm at the
+   new binaries and records the verification in the table below. Merge it after its checks pass.
+6. **npm**, when the package is published there, is a manual step by a maintainer with npm access.
+
+The cut and the packaging pull request need the `RELEASE_TAG_TOKEN` secret: a fine-grained GitHub
+token for this repository only, with read and write access to contents and pull requests. GitHub
+does not let a workflow's own token start another workflow, so the tag and the packaging pull
+request are pushed with it. Rotate it on the schedule your organisation uses for such tokens.
+
 ## Preconditions
 
 - The release commit is reachable from protected `main`.
@@ -11,7 +39,9 @@
 - Hardened container and Kubernetes probes pass with the durable receipt volume, Ed25519 keys,
   streaming, tools, restart continuity, and tamper rejection.
 - GitHub private vulnerability reporting is enabled and tested.
-- The tag is annotated and signed by an authorized maintainer.
+- The tag is annotated and signed. From `v0.1.0-alpha.8` it is signed keylessly by the Cut release
+  workflow on `main`, which only maintainers can run; earlier tags carry a maintainer's SSH
+  signature.
 
 These controls are enabled on the public repository, the non-maintainer private-reporting test is
 complete, and the reviewed implementation has fresh local evidence plus passing protected-branch CI.
@@ -43,6 +73,19 @@ the CycloneDX document as a release asset. It retains the SBOM, bundles, verific
 identity, and signed checksums as one workflow artifact for attachment to the GitHub release.
 
 ## Operator verification
+
+A tag cut from GitHub verifies with [gitsign](https://github.com/sigstore/gitsign) against the
+identity of the workflow that signed it:
+
+```sh
+git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+gitsign verify-tag "$TAG" \
+  --certificate-identity "https://github.com/Intellumia/egrysa/.github/workflows/cut-release.yml@refs/heads/main" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+GitHub's web interface shows such a tag as unverified because it does not read Sigstore signatures;
+the command above is the check. The release workflow runs it before publishing.
 
 Verify the tag signature, GitHub attestation, cosign identity, image digest, and SBOM before copying
 the digest into a deployment manifest. Never deploy a mutable tag. The all-zero digest in the sample
@@ -215,8 +258,9 @@ the corpus must contain them.
 
 ## Package managers
 
-After a release is published and `tools/verify-release.sh` has passed against it, generate the
-package-manager metadata from the verified evidence and land it through a pull request:
+The release workflow opens this pull request itself after publishing. To do it by hand, for example
+if the workflow could not, generate the package-manager metadata from verified evidence and land it
+through a pull request:
 
 ```sh
 deno task package:release --tag=<tag> --sums=<evidence dir>/SHA256SUMS
