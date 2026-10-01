@@ -5,6 +5,9 @@ from GitHub. It holds how work is done here. What the product is and the rules i
 are in [CODEX.md](CODEX.md); read it first. This repository is public, so nothing client-specific,
 internal, or secret belongs in it, including in this file.
 
+Working notes and anything internal live in the private repository Intellumia/egrysa-internal.
+Sessions with access should read its `notes/README.md` before starting, and keep its notes current.
+
 ## Toolchain
 
 - Deno 2.9.4, pinned everywhere (CI, container, docs). Zero third-party runtime packages.
